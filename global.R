@@ -28,7 +28,7 @@ TYPES_CORRECTION <- c(
   'Measurement factor',
   'Mirror flow',
   'Outlier correction',
-  'Publication',
+  'Publication/website',
   'Expert knowledge'
 )
 
