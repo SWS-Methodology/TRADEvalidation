@@ -1015,7 +1015,7 @@ server <- function(input, output, session) {
   observeEvent(
     input$corr_confirm_correction,
     {
-      if (input$corr_choose_correction %in% c('Publication', 'Expert knowledge') & input$corr_note_by_analyst == '') {
+      if (input$corr_choose_correction == 'Expert knowledge' & input$corr_note_by_analyst == '') {
         showModal(
           modalDialog(
             title = "Missing comment",
