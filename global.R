@@ -55,7 +55,8 @@ publication_sources <-
     matrix(
       c(
         'National publication/website', '', 'p',
-        'UNCOMTRADE', '', 'p',
+        'UNCOMTRADE official', '', 'p',
+        'UNCOMTRADE estimation', 'X', 'p',
         'Trademap official', '', 'p',
         'Trademap mirror data', 'T', 'p',
         'Other international/regional publication/website', 'T', 'p'
