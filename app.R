@@ -120,7 +120,7 @@ ui <-
             uiOutput('corr_correction10'),
             uiOutput('corr_correction_outlier_ui'),
             conditionalPanel(
-              condition = 'input.corr_choose_correction ===  "Publication"',
+              condition = 'input.corr_choose_correction ===  "Publication/website"',
               numericInput("corr_correction_publication", "Input a number:", 0, min = 0)
             ),
             conditionalPanel(
@@ -771,8 +771,8 @@ server <- function(input, output, session) {
           !values$corr_cant_correct, input$corr_year2correct,
           input$corr_choose_correction)
 
-      if (input$corr_choose_correction %in% c("Publication", "None")) {
-        if (input$corr_choose_correction == "Publication") {
+      if (input$corr_choose_correction %in% c("Publication/website", "None")) {
+        if (input$corr_choose_correction == "Publication/website") {
           choices <- publication_sources$source
         } else {
           choices <-
@@ -2130,14 +2130,12 @@ server <- function(input, output, session) {
         corr_note <-
           switch(
             input$corr_choose_correction,
-            'None'               = NA_character_,
-            'Measurement factor' = NA_character_,
-            ##### TODO: multiple corrections
-            # 'Measurement factor' = ifelse(values$multiplecorrections, 'Multiple corrections', NA_character_),
-            'Mirror flow'        = NA_character_,
-            'Outlier correction' = input$corr_correction_outlier,
-            'Publication'        = NA_character_,
-            'Expert knowledge'   = NA_character_
+            'None'                = NA_character_,
+            'Measurement factor'  = NA_character_,
+            'Mirror flow'         = NA_character_,
+            'Outlier correction'  = input$corr_correction_outlier,
+            'Publication/website' = NA_character_,
+            'Expert knowledge'    = NA_character_
           )
 
         d_orig <-
@@ -2519,11 +2517,11 @@ server <- function(input, output, session) {
           values$new_figure <-
             switch(
               input$corr_choose_correction,
-              "Measurement factor" = values$new_10,
-              "Mirror flow"        = values$new_mirror,
-              "Outlier correction" = input$corr_correction_outlier,
-              "Publication"        = input$corr_correction_publication,
-              "Expert knowledge"   = input$corr_correction_expert
+              "Measurement factor"  = values$new_10,
+              "Mirror flow"         = values$new_mirror,
+              "Outlier correction"  = input$corr_correction_outlier,
+              "Publication/website" = input$corr_correction_publication,
+              "Expert knowledge"    = input$corr_correction_expert
             )
 
         }
@@ -2563,7 +2561,7 @@ server <- function(input, output, session) {
 
           new_flag_observ <- d_orig$flagObservationStatus
           new_flag_method <- d_orig$flagMethod
-        } else if (input$corr_choose_correction == "Publication") {
+        } else if (input$corr_choose_correction == "Publication/website") {
           pub_flags <- publication_sources[source == input$corr_note_by_analyst]
           new_flag_observ <- pub_flags$flag_obs
           new_flag_method <- pub_flags$flag_method
