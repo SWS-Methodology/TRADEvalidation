@@ -202,6 +202,14 @@ add_na_rows <- function(data, split = NA_character_) {
   return(res[-nrow(res)])
 }
 
+
+# Takes a list, possible containing another list, and rbindlist it
+rbindlist2 <- function(data) {
+  res <- rbindlist(lapply(data, function(x) if (!is.data.table(x)) rbindlist(x) else x))
+  return(res)
+}
+
+
 # Will add an "outlier" column saying whether it is an outlier or not.
 # When it enters here, the data should already be ordered.
 detect_outliers <- function(data, method = "simple", params = list()) {

@@ -1,3 +1,6 @@
+# TODO: add a lock system on SaveData() as if there is a concurrent saving
+# it **may** happen that the faosws environment comes from another user.
+
 source("global.R")
 
 ui <-
@@ -129,8 +132,8 @@ ui <-
               uiOutput("corr_note_by_analyst_ui")
             ),
             conditionalPanel(
-              condition = 'input.corr_choose_correction ===  "Measurement factor"',
-              uiOutput("corr_multiplecorrections_ui")
+              condition = 'input.corr_choose_correction === "Measurement factor" | input.corr_choose_correction === "Mirror flow"',
+            uiOutput("corr_multiplecorrections_ui")
             ),
             uiOutput('corr_go10'),
             uiOutput('corr_apply_correction_ui'),
@@ -176,7 +179,9 @@ ui <-
         verbatimTextOutput("save_result_corr"),
         verbatimTextOutput("save_result_mirr"),
         h2("List of corrections ready to be saved:"),
-        DT::dataTableOutput("new_corrections")
+        DT::dataTableOutput("new_corrections"),
+        h2("List of partner/item/flow/years that will be updated because they are mirrored:"),
+        DT::dataTableOutput("new_mirrored")
       ),
 
       tabPanel(
@@ -250,8 +255,10 @@ server <- function(input, output, session) {
       data_world            = NULL,
       data_bilat            = NULL,
       data_prod             = NULL,
+      data_multiple         = NULL,
       corrections           = NULL,
       corr_cant_correct     = FALSE,
+      multiplecorrections   = FALSE,
       new_figure            = NA_real_,
       new_10                = NA_real_,
       new_mirror            = NA_real_,
@@ -542,10 +549,22 @@ server <- function(input, output, session) {
       }
     })
 
+  output$new_mirrored <-
+    DT::renderDataTable({
+      if (length(values$mirror_to_save) > 0) {
+        d <- rbindlist2(values$mirror_to_save)
+        if (nrow(d) > 0) {
+          unique(d[, .(geographicAreaM49Reporter, measuredItemCPC, timePointYears)])
+        } else {
+          data.table(info = "No corrections, or no mirrored partners for the corrections above.")
+        }
+      }
+    })
+
   output$new_corrections <-
     DT::renderDataTable({
       if (length(values$corrections_to_save) > 0) {
-        d <- rbindlist(values$corrections_to_save)
+        d <- rbindlist2(values$corrections_to_save)
         if (nrow(d) > 0) {
           show_corrections_table(d, values$codelists)
         } else {
@@ -706,10 +725,18 @@ server <- function(input, output, session) {
     renderUI({
 
       req(values$query_country, values$query_bil_partner,
-          values$query_item, input$query_flow, !values$corr_cant_correct)
+          values$query_item, input$query_flow, !values$corr_cant_correct,
+          input$corr_choose_correction)
 
       checkboxInput("corr_multiplecorrections", "Multiple corrections?")
     })
+
+  observeEvent(
+    input$corr_multiplecorrections,
+    {
+      values$multiplecorrections <- input$corr_multiplecorrections
+    }
+  )
 
   output$corr_suggestmirror <-
     renderUI({
@@ -725,9 +752,9 @@ server <- function(input, output, session) {
         z_mirr <- values$data_mirr_bilat[timePointYears == values$sel_bilat$year & !(substr(measuredElementTrade, 3, 3) %in% 2:3)]$Value
       }
 
-      if (length(d_mirr) == 0 || is.na(d_mirr)) {
-        p('No mirror quantity available.')
+      if (length(d_mirr) == 0 | is.na(d_mirr)) {
         values$new_mirror <- NA_real_
+        p('No mirror quantity available.')
       } else {
         values$new_mirror <- z_mirr
         div(
@@ -1025,7 +1052,7 @@ server <- function(input, output, session) {
       } else {
         add_message <-
           ifelse(
-            input$corr_multiplecorrections,
+            values$multiplecorrections == TRUE,
             'You are applying multiple corrections, so it will take a while.
             As soon as the corrections are applied, this dialog will be closed.',
             ''
@@ -1092,11 +1119,11 @@ server <- function(input, output, session) {
       req(values$query_bil_partner, values$query_item, input$query_flow,
           !values$corr_cant_correct, input$corr_year2correct)
 
-        selectInput(
-          "corr_choose_correction",
-          "Type of correction:",
-          TYPES_CORRECTION
-        )
+      selectInput(
+        "corr_choose_correction",
+        "Type of correction:",
+        TYPES_CORRECTION
+      )
     })
 
   output$query_bil_partner_ui <-
@@ -1395,9 +1422,21 @@ server <- function(input, output, session) {
 
       req(values$data_bilat)
 
+      d_bil <- copy(values$new_sws_data_bilat)
+
       shares_trade <- values$new_sws_data_bilat[!(substr(measuredElementTrade, 3, 3) %in% 2:3), .(geographicAreaM49Partner, share = Value / sum(Value)), .(measuredElementTrade, measuredItemCPC, timePointYears)]
 
-      d <- values$new_sws_data_bilat[geographicAreaM49Partner %in% shares_trade[share > input$share_trade / 100]$geographicAreaM49Partner]
+      myshare <- input$share_trade
+      d <- d_bil[geographicAreaM49Partner %in% shares_trade[share > myshare / 100]$geographicAreaM49Partner]
+
+      while (nrow(d) == 0 & myshare >= 0) {
+        myshare <- myshare - 1
+        d <- d_bil[geographicAreaM49Partner %in% shares_trade[share > myshare / 100]$geographicAreaM49Partner]
+
+        if (nrow(d) > 0) {
+          updateSliderInput(session, "share_trade", value = myshare)
+        }
+      }
 
       d <-
         d[
@@ -1443,7 +1482,7 @@ server <- function(input, output, session) {
         hot_col("plot", renderer = htmlwidgets::JS("renderSparkline")) %>%
         hot_cols(fixedColumnsLeft = 4, colWidths = col_widths) %>%
         hot_col(col_headers[grep("^\\d{4}$", col_headers)], format = "0,0")
-})
+  })
 
   output$text_total_info <-
     renderText({
@@ -1778,6 +1817,8 @@ server <- function(input, output, session) {
 
         values$email <- tolower(swsContext.userEmail)
 
+        initial_country_code <- swsContext.datasets[[1]]@dimensions$geographicAreaM49Reporter@keys[1]
+
         values$fcl_2_cpc <- ReadDatatable("fcl2cpc_ver_2_1")
 
         values$people_in_charge <- ReadDatatable("ess_trade_people")$fao_email
@@ -1807,6 +1848,8 @@ server <- function(input, output, session) {
         # XXX: remove for not these, once the standard gets enforced
         values$codelists$countries <- values$codelists$countries[!(code %in% c(156, 1249))]
 
+        values$initial_country <- values$codelists$countries[code == initial_country_code, paste(code, "-", description)]
+
         # To be able to label the outliers based on some threshold over the
         # quantity (if the trade size of a commodity is really low, it is not
         # an interesting outlier for us), we will use the datatable below.
@@ -1819,8 +1862,6 @@ server <- function(input, output, session) {
         ##### updateTabsetPanel(session, "tab_total", "Total") # TODO: change "tab_total" name
         ##### updateTabsetPanel(session, "tab_total", "Bilateral")
         ##### updateTabsetPanel(session, "tab_total", "Welcome")
-
-        values$initial_country <- values$codelists$countries[code == swsContext.datasets[[1]]@dimensions$geographicAreaM49Reporter@keys[1], paste(code, "-", description)]
 
         return(TRUE)
       }
@@ -2059,10 +2100,10 @@ server <- function(input, output, session) {
 
         if (nrow(d) > 0) {
 
-          d[
-            substr(measuredElementTrade, 3, 3) %in% 2:3,
-            Value := Value * ifelse(substr(measuredElementTrade, 1, 2) == "56", 1 / CIFFOB, CIFFOB)
-          ]
+          #d[
+          #  substr(measuredElementTrade, 3, 3) %in% 2:3,
+          #  Value := Value * ifelse(substr(measuredElementTrade, 1, 2) == "56", 1 / CIFFOB, CIFFOB)
+          #]
 
           d <- d[CJ(geographicAreaM49Reporter = unique(d$geographicAreaM49Reporter), geographicAreaM49Partner = unique(d$geographicAreaM49Partner), measuredElementTrade = unique(d$measuredElementTrade), measuredItemCPC = unique(d$measuredItemCPC), timePointYears = as.character(input$query_years[1]:input$query_years[2])), on = c("geographicAreaM49Reporter", "geographicAreaM49Partner", "measuredElementTrade", "measuredItemCPC", "timePointYears")]
         }
@@ -2074,102 +2115,302 @@ server <- function(input, output, session) {
   )
 
   observeEvent(
+    input$corr_choose_correction,
+    {
+      values$multiplecorrections <- FALSE
+    }
+  )
+
+  observeEvent(
     input$corr_okCorrection,
     {
       removeModal()
 
-      corr_note <-
-        switch(
-          input$corr_choose_correction,
-          'None'               = NA_character_,
-          'Measurement factor' = NA_character_,
-          ##### TODO: multiple corrections
-          # 'Measurement factor' = ifelse(input$corr_multiplecorrections, 'Multiple corrections', NA_character_),
-          'Mirror flow'        = NA_character_,
-          'Outlier correction' = input$corr_correction_outlier,
-          'Publication'        = NA_character_,
-          'Expert knowledge'   = NA_character_
-        )
+      if (values$multiplecorrections == FALSE) {
+        corr_note <-
+          switch(
+            input$corr_choose_correction,
+            'None'               = NA_character_,
+            'Measurement factor' = NA_character_,
+            ##### TODO: multiple corrections
+            # 'Measurement factor' = ifelse(values$multiplecorrections, 'Multiple corrections', NA_character_),
+            'Mirror flow'        = NA_character_,
+            'Outlier correction' = input$corr_correction_outlier,
+            'Publication'        = NA_character_,
+            'Expert knowledge'   = NA_character_
+          )
 
-      d_orig <-
-        values$data_bilat[
-          geographicAreaM49Partner == values$sel_bilat$partner &
-            measuredItemCPC == values$query_item &
-            timePointYears == values$sel_bilat$year &
-            substr(measuredElementTrade, 3, 3) != 3
-        ]
+        d_orig <-
+          values$data_bilat[
+            geographicAreaM49Partner == values$sel_bilat$partner &
+              measuredItemCPC == values$query_item &
+              timePointYears == values$sel_bilat$year &
+              substr(measuredElementTrade, 3, 3) != 3
+          ]
 
-      if (input$corr_variable2correct == "Value") {
-        d_orig <- d_orig[substr(measuredElementTrade, 3, 3) == "2"]
-      } else {
-        d_orig <- d_orig[substr(measuredElementTrade, 3, 3) != "2"]
-      }
-
-      mycorrection <-
-        data.table(
-          reporter         = values$query_country,
-          partner          = values$query_bil_partner,
-          year             = as.integer(input$corr_year2correct),
-          item             = values$query_item,
-          flow             = ifelse(input$query_flow == "import", 1L, 2L),
-          data_original    = d_orig$Value,
-          data_type        = ifelse(input$corr_variable2correct == "Quantity", "qty", "value"),
-          correction_level = "CPC",
-          correction_hs    = NA_character_,
-          correction_input = values$new_figure,
-          correction_type  = input$corr_choose_correction,
-          correction_note  = corr_note,
-          note_analyst     = input$corr_note_by_analyst,
-          note_supervisor  = NA_character_,
-          name_analyst     = tolower((strsplit(swsContext.userEmail, "@")[[1]][1])),
-          name_supervisor  = NA_character_,
-          date_correction  = format(Sys.time(), "%Y-%m-%d-%H-%M-%S"),
-          date_validation  = NA_character_
-        )
-
-      # linked to undo
-      values$corrections_to_save[[as.character(length(values$modif_history))]] <- mycorrection
-
-      ########### MIRROR
-
-      d_mirr_bil <- values$data_mirr_bilat[timePointYears == values$sel_bilat$year]
-
-      if (input$corr_variable2correct == "Value") {
-        if (input$query_flow == "import") {
-          new_mirror_value <- values$new_figure / CIFFOB
+        if (input$corr_variable2correct == "Value") {
+          d_orig <- d_orig[substr(measuredElementTrade, 3, 3) == "2"]
         } else {
-          new_mirror_value <- values$new_figure * CIFFOB
+          d_orig <- d_orig[substr(measuredElementTrade, 3, 3) != "2"]
         }
 
-        d_mirr_bil[
-          substr(measuredElementTrade, 3, 3) == 2,
-          `:=`(
-            Value                 = values$new_figure,
-            flagObservationStatus = "T",
-            flagMethod            = "i"
+        mycorrection <-
+          data.table(
+            reporter         = values$query_country,
+            partner          = values$query_bil_partner,
+            year             = as.integer(input$corr_year2correct),
+            item             = values$query_item,
+            flow             = ifelse(input$query_flow == "import", 1L, 2L),
+            data_original    = d_orig$Value,
+            data_type        = ifelse(input$corr_variable2correct == "Quantity", "qty", "value"),
+            correction_level = "CPC",
+            correction_hs    = NA_character_,
+            correction_input = values$new_figure,
+            correction_type  = input$corr_choose_correction,
+            correction_note  = corr_note,
+            note_analyst     = input$corr_note_by_analyst,
+            note_supervisor  = NA_character_,
+            name_analyst     = tolower(sub("@.*", "", values$email)),
+            name_supervisor  = NA_character_,
+            date_correction  = format(Sys.time(), "%Y-%m-%d-%H-%M-%S"),
+            date_validation  = NA_character_
           )
-        ]
 
-        # XXX 3 elements...
-        uv <- new_mirror_value / d_mirr_bil[!(substr(measuredElementTrade, 3, 3) %in% 2:3)]$Value * 1000
+        # linked to undo
+        values$corrections_to_save[[as.character(length(values$modif_history))]] <- mycorrection
+
+        ########### MIRROR
+        d_mirr_bil <- values$data_mirr_bilat[timePointYears == values$sel_bilat$year]
+
+        d_mirr_bil[, to_fix := FALSE]
+        if (input$corr_variable2correct == "Value") {
+          d_mirr_bil[substr(measuredElementTrade, 3, 3) != 3, to_fix := substr(measuredElementTrade, 3, 3) == 2]
+        } else {
+          d_mirr_bil[substr(measuredElementTrade, 3, 3) != 3, to_fix := substr(measuredElementTrade, 3, 3) != 2]
+        }
+            
+
+        if (nrow(d_mirr_bil[to_fix == TRUE & flagObservationStatus == "T"]) > 0) {
+          d_mirr_bil[, to_fix := NULL]
+
+          if (input$corr_variable2correct == "Value") {
+            if (input$query_flow == "import") {
+              new_mirror_value <- values$new_figure / CIFFOB
+            } else {
+              new_mirror_value <- values$new_figure * CIFFOB
+            }
+
+            d_mirr_bil[
+              substr(measuredElementTrade, 3, 3) == 2,
+              `:=`(
+                Value                 = new_mirror_value,
+                flagObservationStatus = "T",
+                flagMethod            = "i"
+              )
+            ]
+
+            # XXX 3 elements...
+            uv <- new_mirror_value / d_mirr_bil[!(substr(measuredElementTrade, 3, 3) %in% 2:3)]$Value * 1000
+          } else {
+            d_mirr_bil[
+              !(substr(measuredElementTrade, 3, 3) %in% 2:3),
+              `:=`(
+                Value                 = values$new_figure,
+                flagObservationStatus = "T",
+                flagMethod            = "c"
+              )
+            ]
+
+            uv <- d_mirr_bil[substr(measuredElementTrade, 3, 3) == 2]$Value / values$new_figure * 1000
+          }
+
+          d_mirr_bil[substr(measuredElementTrade, 3, 3) == "3", Value := uv]
+
+          # TODO: update UV flags, even though they probably stay the same
+
+          values$mirror_to_save[[as.character(length(values$modif_history))]] <- d_mirr_bil
+        }
+
       } else {
-        d_mirr_bil[
-          !(substr(measuredElementTrade, 3, 3) %in% 2:3),
-          `:=`(
-            Value                 = values$new_figure,
-            flagObservationStatus = "T",
-            flagMethod            = "c"
+
+        mycorrection <-
+          data.table(
+            reporter         = values$query_country,
+            partner          = NA_character_, # To be changed below
+            year             = as.integer(input$corr_year2correct),
+            item             = values$query_item,
+            flow             = ifelse(input$query_flow == "import", 1L, 2L),
+            data_original    = NA_real_, # To be changed below
+            data_type        = ifelse(input$corr_variable2correct == "Quantity", "qty", "value"),
+            correction_level = "CPC",
+            correction_hs    = NA_character_,
+            correction_input = NA_real_, # To be changed below
+            correction_type  = input$corr_choose_correction, # To be changed below
+            correction_note  = "Multiple corrections",
+            note_analyst     = input$corr_note_by_analyst,
+            note_supervisor  = NA_character_,
+            name_analyst     = tolower(sub("@.*", "", values$email)),
+            name_supervisor  = NA_character_,
+            date_correction  = format(Sys.time(), "%Y-%m-%d-%H-%M-%S"),
+            date_validation  = NA_character_
           )
-        ]
 
-        uv <- d_mirr_bil[substr(measuredElementTrade, 3, 3) == 2]$Value / values$new_figure * 1000
+        # linked to undo: XXX: should be a list of corrections for multiple corrections?
+        values$corrections_to_save[[as.character(length(values$modif_history))]] <- list()
+
+        if (input$corr_choose_correction == "Mirror flow") {
+          mycorrection[, correction_type := "Mirror flow"]
+
+          for (mypartner in unique(values$data_multiple$geographicAreaM49Partner)) {
+            mycorrection_partner = copy(mycorrection)
+
+            d <- values$data_multiple[geographicAreaM49Partner == mypartner & substr(measuredElementTrade, 3, 3) != 3]
+
+            d_orig <-
+              values$data_bilat[
+                geographicAreaM49Partner == mypartner &
+                  measuredItemCPC == values$query_item &
+                  timePointYears == values$sel_bilat$year &
+                  substr(measuredElementTrade, 3, 3) != 3
+              ]
+
+            if (input$corr_variable2correct == "Value") {
+              d      <- d[substr(measuredElementTrade, 3, 3) == "2"]
+              d_orig <- d_orig[substr(measuredElementTrade, 3, 3) == "2"]
+            } else {
+              d      <- d[substr(measuredElementTrade, 3, 3) != "2"]
+              d_orig <- d_orig[substr(measuredElementTrade, 3, 3) != "2"]
+            }
+            
+            mycorrection_partner[,
+              `:=`(
+                partner = mypartner,
+                data_original = d_orig$Value,
+                correction_input = d$Value
+              )
+            ]
+
+            values$corrections_to_save[[as.character(length(values$modif_history))]][[mypartner]] <- mycorrection_partner
+          }
+
+        } else if (input$corr_choose_correction == "Measurement factor") {
+          mycorrection[, correction_type := "Measurement factor"]
+
+
+          values$mirror_to_save[[as.character(length(values$modif_history))]] <- list()
+
+
+          elements <- substr(unique(values$data_multiple$measuredElementTrade), 3, 4)
+
+          # NOTE: it's the opposite
+          elements <- paste0(ifelse(input$query_flow == "import", "59", "56"), elements)
+
+          key <-
+            DatasetKey(
+              domain = DOMAIN,
+              dataset = DATASET_BIL,
+              dimensions =
+                list(
+                  geographicAreaM49Reporter = Dimension("geographicAreaM49Reporter", unique(values$data_multiple$geographicAreaM49Partner)),
+                  geographicAreaM49Partner  = Dimension("geographicAreaM49Partner",  values$query_country),
+                  measuredElementTrade      = Dimension("measuredElementTrade",      elements),
+                  measuredItemCPC           = Dimension("measuredItemCPC",           values$query_item),
+                  timePointYears            = Dimension("timePointYears",            input$corr_year2correct)
+                )
+            )
+
+          swsProgress_mirr3 <- Progress$new(session, min = 0, max = 100)
+          on.exit(swsProgress_mirr3$close())
+          swsProgress_mirr3$set(value = 100, message = "Loading mirror data from SWS")
+
+          d_mirr <- GetData(key)
+
+          for (mypartner in unique(values$data_multiple$geographicAreaM49Partner)) {
+            mycorrection_partner = copy(mycorrection)
+
+            d <- values$data_multiple[geographicAreaM49Partner == mypartner & substr(measuredElementTrade, 3, 3) != 3]
+
+            d_orig <-
+              values$data_bilat[
+                geographicAreaM49Partner == mypartner &
+                  measuredItemCPC == values$query_item &
+                  timePointYears == values$sel_bilat$year &
+                  substr(measuredElementTrade, 3, 3) != 3
+              ]
+
+            if (input$corr_variable2correct == "Value") {
+              d      <- d[substr(measuredElementTrade, 3, 3) == "2"]
+              d_orig <- d_orig[substr(measuredElementTrade, 3, 3) == "2"]
+            } else {
+              d      <- d[substr(measuredElementTrade, 3, 3) != "2"]
+              d_orig <- d_orig[substr(measuredElementTrade, 3, 3) != "2"]
+            }
+            
+            mycorrection_partner[,
+              `:=`(
+                partner = mypartner,
+                data_original = d_orig$Value,
+                correction_input = d$Value
+              )
+            ]
+
+            values$corrections_to_save[[as.character(length(values$modif_history))]][[mypartner]] <- mycorrection_partner
+
+            d_mirr_bil <- d_mirr[geographicAreaM49Reporter == mypartner]
+
+            d_mirr_bil[, to_fix := FALSE]
+            if (input$corr_variable2correct == "Value") {
+              d_mirr_bil[substr(measuredElementTrade, 3, 3) != 3, to_fix := substr(measuredElementTrade, 3, 3) == 2]
+            } else {
+              d_mirr_bil[substr(measuredElementTrade, 3, 3) != 3, to_fix := substr(measuredElementTrade, 3, 3) != 2]
+            }
+            
+            ########### MIRROR
+            if (nrow(d_mirr_bil[to_fix == TRUE & flagObservationStatus == "T"]) > 0) {
+
+              d_mirr_bil[, to_fix := NULL]
+
+              if (input$corr_variable2correct == "Value") {
+                if (input$query_flow == "import") {
+                  new_mirror_value <- d$Value / CIFFOB
+                } else {
+                  new_mirror_value <- d$Value * CIFFOB
+                }
+
+                d_mirr_bil[
+                  substr(measuredElementTrade, 3, 3) == 2,
+                  `:=`(
+                    Value                 = new_mirror_value,
+                    flagObservationStatus = "T",
+                    flagMethod            = "i"
+                  )
+                ]
+
+                # XXX 3 elements...
+                uv <- new_mirror_value / d_mirr_bil[!(substr(measuredElementTrade, 3, 3) %in% 2:3)]$Value * 1000
+              } else {
+                d_mirr_bil[
+                  !(substr(measuredElementTrade, 3, 3) %in% 2:3),
+                  `:=`(
+                    Value                 = d$Value,
+                    flagObservationStatus = "T",
+                    flagMethod            = "c"
+                  )
+                ]
+
+                uv <- d_mirr_bil[substr(measuredElementTrade, 3, 3) == 2]$Value / d$Value * 1000
+              }
+
+              d_mirr_bil[substr(measuredElementTrade, 3, 3) == "3", Value := uv]
+
+              # TODO: update UV flags, even though they probably stay the same
+
+              values$mirror_to_save[[as.character(length(values$modif_history))]][[mypartner]] <- d_mirr_bil
+
+            }
+          }
+        }
       }
-
-      d_mirr_bil[substr(measuredElementTrade, 3, 3) == "3", Value := uv]
-
-      # TODO: update UV flags, even though they probably stay the same
-
-      values$mirror_to_save[[as.character(length(values$modif_history))]] <- d_mirr_bil
     }
   )
 
@@ -2259,34 +2500,38 @@ server <- function(input, output, session) {
   observeEvent(
     input$corr_apply_correction,
     {
-      if (input$corr_choose_correction == "None") {
-        d_orig <-
-          values$data_bilat[
-            geographicAreaM49Partner == values$sel_bilat$partner &
-              measuredItemCPC == values$query_item &
-              timePointYears == values$sel_bilat$year &
-              substr(measuredElementTrade, 3, 3) != 3
-          ]
+      if (values$multiplecorrections == FALSE) {
+        if (input$corr_choose_correction == "None") {
+          d_orig <-
+            values$data_bilat[
+              geographicAreaM49Partner == values$sel_bilat$partner &
+                measuredItemCPC == values$query_item &
+                timePointYears == values$sel_bilat$year &
+                substr(measuredElementTrade, 3, 3) != 3
+            ]
 
-        if (input$corr_variable2correct == "Value") {
-          values$new_figure <- d_orig[substr(measuredElementTrade, 3, 3) == 2]$Value
+          if (input$corr_variable2correct == "Value") {
+            values$new_figure <- d_orig[substr(measuredElementTrade, 3, 3) == 2]$Value
+          } else {
+            values$new_figure <- d_orig[substr(measuredElementTrade, 3, 3) != 2]$Value
+          }
         } else {
-          values$new_figure <- d_orig[substr(measuredElementTrade, 3, 3) != 2]$Value
+          values$new_figure <-
+            switch(
+              input$corr_choose_correction,
+              "Measurement factor" = values$new_10,
+              "Mirror flow"        = values$new_mirror,
+              "Outlier correction" = input$corr_correction_outlier,
+              "Publication"        = input$corr_correction_publication,
+              "Expert knowledge"   = input$corr_correction_expert
+            )
+
         }
+
+        values$new_figure <- as.numeric(values$new_figure)
       } else {
-        values$new_figure <-
-          switch(
-            input$corr_choose_correction,
-            "Measurement factor" = values$new_10,
-            "Mirror flow"        = values$new_mirror,
-            "Outlier correction" = input$corr_correction_outlier,
-            "Publication"        = input$corr_correction_publication,
-            "Expert knowledge"   = input$corr_correction_expert
-          )
-
+        values$new_figure <- NULL
       }
-
-      values$new_figure <- as.numeric(values$new_figure)
     }
   )
 
@@ -2296,75 +2541,199 @@ server <- function(input, output, session) {
       values$modif_history[[length(values$modif_history) + 1]] <-
         list(total = values$new_sws_data_total, bilat = values$new_sws_data_bilat)
 
-      d_bilat <- copy(values$new_sws_data_bilat)
 
-      if (input$corr_choose_correction == "None") {
-        d_orig <-
-          values$data_bilat[
-            geographicAreaM49Partner == values$sel_bilat$partner &
-              measuredItemCPC == values$query_item &
-              timePointYears == values$sel_bilat$year &
-              substr(measuredElementTrade, 3, 3) != 3
-          ]
+      if (values$multiplecorrections == FALSE) {
 
-        if (input$corr_variable2correct == "Value") {
-          d_orig <- d_orig[substr(measuredElementTrade, 3, 3) == "2"]
+        d_bilat <- copy(values$new_sws_data_bilat)
+
+        if (input$corr_choose_correction == "None") {
+          d_orig <-
+            values$data_bilat[
+              geographicAreaM49Partner == values$sel_bilat$partner &
+                measuredItemCPC == values$query_item &
+                timePointYears == values$sel_bilat$year &
+                substr(measuredElementTrade, 3, 3) != 3
+            ]
+
+          if (input$corr_variable2correct == "Value") {
+            d_orig <- d_orig[substr(measuredElementTrade, 3, 3) == "2"]
+          } else {
+            d_orig <- d_orig[substr(measuredElementTrade, 3, 3) != "2"]
+          }
+
+          new_flag_observ <- d_orig$flagObservationStatus
+          new_flag_method <- d_orig$flagMethod
+        } else if (input$corr_choose_correction == "Publication") {
+          pub_flags <- publication_sources[source == input$corr_note_by_analyst]
+          new_flag_observ <- pub_flags$flag_obs
+          new_flag_method <- pub_flags$flag_method
+        } else if (input$corr_choose_correction == "Expert knowledge") {
+          new_flag_observ <- "E"
+          new_flag_method <- "f"
+        } else if (input$corr_choose_correction == "Mirror flow") {
+          new_flag_observ <- "T"
+          new_flag_method <- "c"
         } else {
-          d_orig <- d_orig[substr(measuredElementTrade, 3, 3) != "2"]
+          new_flag_observ <- "I"
+          new_flag_method <- "e"
         }
 
-        new_flag_observ <- d_orig$flagObservationStatus
-        new_flag_method <- d_orig$flagMethod
-      } else if (input$corr_choose_correction == "Publication") {
-        pub_flags <- publication_sources[source == input$corr_note_by_analyst]
-        new_flag_observ <- pub_flags$flag_obs
-        new_flag_method <- pub_flags$flag_method
-      } else if (input$corr_choose_correction == "Expert knowledge") {
-        new_flag_observ <- "E"
-        new_flag_method <- "f"
-      } else if (input$corr_choose_correction == "Mirror flow") {
-        new_flag_observ <- "T"
-        new_flag_method <- "c"
-      } else {
-        new_flag_observ <- "I"
-        new_flag_method <- "e"
-      }
+        d_bilat[
+          geographicAreaM49Reporter  == values$query_country &
+            geographicAreaM49Partner == values$sel_bilat$partner &
+            measuredElementTrade     == values$sel_bilat$element &
+            measuredItemCPC          == values$query_item &
+            timePointYears           == values$sel_bilat$year,
+          `:=`(
+            Value                 = values$new_figure,
+            flagObservationStatus = new_flag_observ,
+            flagMethod            = new_flag_method
+          )
+        ]
 
-      # TODO: mirror
-
-      d_bilat[
-        geographicAreaM49Reporter  == values$query_country &
+        # Update unit value
+        d_bilat[
           geographicAreaM49Partner == values$sel_bilat$partner &
-          measuredElementTrade     == values$sel_bilat$element &
-          measuredItemCPC          == values$query_item &
-          timePointYears           == values$sel_bilat$year,
-        `:=`(
-          Value                 = values$new_figure,
-          flagObservationStatus = new_flag_observ,
-          flagMethod            = new_flag_method
-        )
-      ]
+            timePointYears == values$sel_bilat$year,
+          `:=`(
+            Value =
+              ifelse(
+                substr(measuredElementTrade, 3, 3) == "3",
+                Value[substr(measuredElementTrade, 3, 3) == "2"] / Value[!(substr(measuredElementTrade, 3, 3) %in% 2:3)] * 1000,
+                Value
+              ),
+            flagObservationStatus =
+              ifelse(
+                substr(measuredElementTrade, 3, 3) == "3",
+                aggregateObservationFlag(flagObservationStatus[substr(measuredElementTrade, 3, 3) != "3"]),
+                flagObservationStatus
+              ),
+            flagMethod = ifelse(substr(measuredElementTrade, 3, 3) == "3", "i", flagMethod)
+          )
+        ]
+      } else {
 
-      # Update unit value
-      d_bilat[
-        geographicAreaM49Partner == values$sel_bilat$partner &
-          timePointYears == values$sel_bilat$year,
-        `:=`(
-          Value =
-            ifelse(
-              substr(measuredElementTrade, 3, 3) == "3",
-              Value[substr(measuredElementTrade, 3, 3) == "2"] / Value[!(substr(measuredElementTrade, 3, 3) %in% 2:3)] * 1000,
-              Value
-            ),
-          flagObservationStatus =
-            ifelse(
-              substr(measuredElementTrade, 3, 3) == "3",
-              aggregateObservationFlag(flagObservationStatus[substr(measuredElementTrade, 3, 3) != "3"]),
-              flagObservationStatus
-            ),
-          flagMethod = ifelse(substr(measuredElementTrade, 3, 3) == "3", "i", flagMethod)
-        )
-      ]
+        d_bilat <- values$new_sws_data_bilat[timePointYears == input$corr_year2correct]
+
+        if (input$corr_choose_correction == "Mirror flow") {
+
+          uvs <- d_bilat[substr(measuredElementTrade, 3, 3) == 3]
+
+          d_bilat <- d_bilat[substr(measuredElementTrade, 3, 3) != 3]
+
+          elements <- substr(unique(d_bilat$measuredElementTrade), 3, 4)
+
+          # NOTE: it's the opposite
+          elements <- paste0(ifelse(input$query_flow == "import", "59", "56"), elements)
+
+          key <-
+            DatasetKey(
+              domain = DOMAIN,
+              dataset = DATASET_BIL,
+              dimensions =
+                list(
+                  geographicAreaM49Reporter = Dimension("geographicAreaM49Reporter", unique(d_bilat$geographicAreaM49Partner)),
+                  geographicAreaM49Partner  = Dimension("geographicAreaM49Partner",  values$query_country),
+                  measuredElementTrade      = Dimension("measuredElementTrade",      elements),
+                  measuredItemCPC           = Dimension("measuredItemCPC",           values$query_item),
+                  timePointYears            = Dimension("timePointYears",            input$corr_year2correct)
+                )
+            )
+
+          swsProgress_mirr2 <- Progress$new(session, min = 0, max = 100)
+          on.exit(swsProgress_mirr2$close())
+          swsProgress_mirr2$set(value = 100, message = "Loading mirror data from SWS")
+
+          d_mirr <- GetData(key)
+
+          d_mirr <- d_mirr[, .(geographicAreaM49Partner = geographicAreaM49Reporter, element = substr(measuredElementTrade, 3, 4), Value_mirr = Value)]
+
+          d_bilat[, element := substr(measuredElementTrade, 3, 4)]
+
+          d_bilat <- merge(d_bilat, d_mirr, by = c("geographicAreaM49Partner", "element"), all.x = TRUE)
+
+          d_bilat[, element := NULL]
+
+          if (input$corr_variable2correct == "Value") {
+            d_bilat[
+              substr(measuredElementTrade, 3, 3) == "2" & !is.na(Value_mirr),
+              `:=`(
+                Value = Value_mirr * ifelse(input$query_flow == "import", CIFFOB, 1/CIFFOB),
+                flagObservationStatus = "T",
+                flagMethod = "i"
+              )
+            ]
+          } else {
+            d_bilat[
+              !(substr(measuredElementTrade, 3, 3) %in% 2:3) & !is.na(Value_mirr),
+              `:=`(
+                Value = Value_mirr,
+                flagObservationStatus = "T",
+                flagMethod = "c"
+              )
+            ]
+          }
+
+          d_bilat[, Value_mirr := NULL]
+
+          d_bilat <- rbind(d_bilat, uvs)
+
+        } else if (input$corr_choose_correction == "Measurement factor") {
+          uvs <- d_bilat[substr(measuredElementTrade, 3, 3) == 3]
+
+          d_bilat <- d_bilat[substr(measuredElementTrade, 3, 3) != 3]
+
+          if (input$corr_variable2correct == "Value") {
+            d_bilat[
+              substr(measuredElementTrade, 3, 3) == "2",
+              `:=`(
+                Value = Value * as.numeric(input$corr_correction10),
+                flagObservationStatus = "I",
+                flagMethod = "e"
+              )
+            ]
+          } else {
+            d_bilat[
+              substr(measuredElementTrade, 3, 3) != "2",
+              `:=`(
+                Value = Value * as.numeric(input$corr_correction10),
+                flagObservationStatus = "I",
+                flagMethod = "e"
+              )
+            ]
+          }
+
+          d_bilat <- rbind(d_bilat, uvs)
+
+        }
+
+        d_bilat[,
+          `:=`(
+            Value =
+              ifelse(
+                substr(measuredElementTrade, 3, 3) == "3",
+                Value[substr(measuredElementTrade, 3, 3) == "2"] / Value[!(substr(measuredElementTrade, 3, 3) %in% 2:3)] * 1000,
+                Value
+              ),
+            flagObservationStatus =
+              ifelse(
+                substr(measuredElementTrade, 3, 3) == "3",
+                aggregateObservationFlag(flagObservationStatus),
+                flagObservationStatus
+              ),
+            flagMethod = ifelse(substr(measuredElementTrade, 3, 3) == "3", "i", flagMethod)
+          ),
+          by = "geographicAreaM49Partner"
+        ]
+
+        values$data_multiple <- d_bilat
+
+        d_bilat <-
+          rbind(
+            d_bilat,
+            values$new_sws_data_bilat[timePointYears != input$corr_year2correct]
+          )
+      }
 
       d_total <- copy(values$new_sws_data_total)
 
@@ -2386,6 +2755,7 @@ server <- function(input, output, session) {
 
       uv <- d_total_sub[grepl("22$", measuredElementTrade)]$new_Value / d_total_sub[!grepl("..[23].", measuredElementTrade)]$new_Value * 1000
 
+      # TODO: aggregate obs flag
       d_total_sub[grepl("..3.", measuredElementTrade), `:=`(new_Value = uv, new_flagMethod = "i")]
 
       d_total <- merge(d_total, d_total_sub, by = c("geographicAreaM49", "measuredElementTrade", "measuredItemCPC", "timePointYears"), all.x = TRUE)
@@ -2519,9 +2889,9 @@ server <- function(input, output, session) {
         on.exit(swsProgress_save$close())
         swsProgress_save$set(value = 100, message = "Saving data")
 
-        new_corrections <- unique(rbindlist(values$corrections_to_save))
+        new_corrections <- unique(rbindlist2(values$corrections_to_save))
 
-        corrected_mirror <- unique(rbindlist(values$mirror_to_save))
+        corrected_mirror <- unique(rbindlist2(values$mirror_to_save))
 
         new_corrections[,
           corrections_metadata :=
@@ -2592,9 +2962,22 @@ server <- function(input, output, session) {
             on = c("geographicAreaM49", "measuredElementTrade", "measuredItemCPC", "timePointYears")
           ]
 
+        GetTestEnvironment(SERVER, input$token)
         res_bil <- SaveData(DOMAIN, DATASET_BIL, d_bil, d_bil_metad)
 
+        GetTestEnvironment(SERVER, input$token)
         res_tot <- SaveData(DOMAIN, DATASET_TOT, d_tot)
+
+        if (nrow(corrected_mirror) > 0) {
+          GetTestEnvironment(SERVER, input$token)
+          res_mirr <- SaveData(DOMAIN, DATASET_BIL, corrected_mirror)
+
+          output$save_result_mirr <-
+            renderText(
+              paste0("Results on PARTNER BILATERAL dataset: ", paste(sapply(res_mirr[c("inserted", "appended", "ignored")], function(x) {paste(x, names(x))}), collapse = ", "), ". Numeric code of mirrored partners involved: ", paste(unique(corrected_mirror$geographicAreaM49Reporter), collapse = ", "), ".")
+            )
+
+        }
 
         output$save_result_bil <-
           renderText(
@@ -2606,15 +2989,6 @@ server <- function(input, output, session) {
             paste0("Results on REPORTER TOTAL dataset: ", paste(sapply(res_tot[c("inserted", "appended", "ignored")], function(x) {paste(x, names(x))}), collapse = ", "), ".")
           )
 
-        if (nrow(corrected_mirror) > 0) {
-          res_mirr <- SaveData(DOMAIN, DATASET_BIL, corrected_mirror)
-
-          output$save_result_mirr <-
-            renderText(
-              paste0("Results on PARTNER BILATERAL dataset: ", paste(sapply(res_mirr[c("inserted", "appended", "ignored")], function(x) {paste(x, names(x))}), collapse = ", "), ". Numeric code of mirrored partners involved: ", paste(unique(corrected_mirror$geographicAreaM49Reporter), collapse = ", "), ".")
-            )
-
-        }
 
         d <- unique(rbind(new_corrections, values$corrections, fill = TRUE))
 
@@ -2801,6 +3175,7 @@ server <- function(input, output, session) {
     {
       removeModal()
 
+      GetTestEnvironment(SERVER, input$token)
       res_uncorr <- SaveData(DOMAIN, DATASET_BIL, values$data_uncorrect)
 
       values$data_uncorrect <- NULL
