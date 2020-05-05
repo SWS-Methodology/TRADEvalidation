@@ -350,7 +350,7 @@ set_hot_colnames <- function(data) {
   return(headers)
 }
 
-set_hot_colwidths <- function(data, hide = FALSE) {
+set_hot_colwidths <- function(data, show = FALSE) {
   ncols <- ncol(data)
   widths <- rep(100, ncols + 1)
   widths[grep("^geographicAreaM49(Reporter)?$", colnames(data))] <- 0.1
@@ -358,10 +358,10 @@ set_hot_colwidths <- function(data, hide = FALSE) {
 
   widths[grep("Partner", colnames(data))] <- 150
 
-  if (hide == TRUE) {
-    widths[grep("^flag", colnames(data))] <- 0.1
-  } else {
+  if (show == TRUE) {
     widths[grep("^flag", colnames(data))] <- 15
+  } else {
+    widths[grep("^flag", colnames(data))] <- 0.1
   }
   
   return(widths)

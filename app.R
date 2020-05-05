@@ -62,7 +62,7 @@ ui <-
       tabPanel(
         "Total",
         fluidRow(
-          column(2, selectInput("opt_hideflags", "Hide flags?", c(FALSE, TRUE))),
+          column(2, selectInput("opt_hideflags", "Show flags?", c(FALSE, TRUE))),
           column(2, selectInput("opt_showmirror", "Show mirror?", c(FALSE, TRUE))),
           column(2, selectInput("opt_showprod", "Show Production?", c(FALSE, TRUE))),
           column(4, sliderInput("share_trade", "Minimum trade share of partner", min = 0, max = 50, 20, step = 5, post = "%", width = "100%")),
@@ -1454,7 +1454,7 @@ server <- function(input, output, session) {
 
       col_headers <- set_hot_colnames(d)
 
-      col_widths <- set_hot_colwidths(d, hide = input$opt_hideflags)
+      col_widths <- set_hot_colwidths(d, show = input$opt_hideflags)
 
       prev_order <- names(d)
 
@@ -1571,7 +1571,7 @@ server <- function(input, output, session) {
 
       col_headers <- set_hot_colnames(d)
 
-      col_widths <- set_hot_colwidths(d, hide = input$opt_hideflags)
+      col_widths <- set_hot_colwidths(d, show = input$opt_hideflags)
 
       # Notice that there is an additional column fixed, with respect to bilaral plot
       rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE, rowHeaders = FALSE) %>%
