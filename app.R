@@ -1326,6 +1326,8 @@ server <- function(input, output, session) {
         # TODO: error handling
         values$new_sws_data_total <- GetData(key)
 
+        values$query_years[2] <- max(values$new_sws_data_total$timePointYears)
+
         values$new_sws_data_total
       }
       ################# / TOTAL #####################
