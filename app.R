@@ -238,6 +238,7 @@ server <- function(input, output, session) {
       error                 = "",
       initial_country       = NULL,
       codelists             = NULL,
+      query_years           = NULL,
       query_country         = NULL,
       query_item            = NULL,
       query_bil_partner     = NULL,
@@ -846,7 +847,7 @@ server <- function(input, output, session) {
     reactive({
       d <- copy(values$new_sws_data_bilat)
 
-      d <- d[CJ(geographicAreaM49Reporter = unique(d$geographicAreaM49Reporter), geographicAreaM49Partner = unique(d$geographicAreaM49Partner), measuredElementTrade = unique(d$measuredElementTrade), measuredItemCPC = unique(d$measuredItemCPC), timePointYears = as.character(input$query_years[1]:input$query_years[2])), on = c("geographicAreaM49Reporter", "geographicAreaM49Partner", "measuredElementTrade", "measuredItemCPC", "timePointYears")]
+      d <- d[CJ(geographicAreaM49Reporter = unique(d$geographicAreaM49Reporter), geographicAreaM49Partner = unique(d$geographicAreaM49Partner), measuredElementTrade = unique(d$measuredElementTrade), measuredItemCPC = unique(d$measuredItemCPC), timePointYears = as.character(values$query_years[1]:values$query_years[2])), on = c("geographicAreaM49Reporter", "geographicAreaM49Partner", "measuredElementTrade", "measuredItemCPC", "timePointYears")]
 
       d[,
         movav := RcppRoll::roll_mean(shift(Value), 3, fill = NA, align = 'right'),
@@ -1199,8 +1200,6 @@ server <- function(input, output, session) {
         d <- rbind(d, d_prod, fill = TRUE)
       }
 
-      #saveRDS(input$table_bilat_select, paste0("c:/Users/Mongeau/Desktop/zzz/", as.numeric(as.POSIXct(Sys.time())), ".rds"))
-
       if (!is.null(input$table_bilat_select)) {
         d_bilat <- values$new_sws_data_bilat[, c("geographicAreaM49Partner", "measuredElementTrade", "timePointYears", "Value"), with = FALSE]
         d_bilat <- d_bilat[geographicAreaM49Partner == values$sel_bilat$partner]
@@ -1218,7 +1217,8 @@ server <- function(input, output, session) {
     })
 
   observeEvent(
-    c(TokenValidator(), values$query_country, values$query_item, input$query_flow, input$query_years, input$opt_showmirror),
+    c(TokenValidator(), values$query_country, values$query_item,
+      input$query_flow, values$query_years, input$opt_showmirror),
     {
       ################## MIRROR #####################
       values$data_mirr_tot <- {
@@ -1239,7 +1239,7 @@ server <- function(input, output, session) {
                    geographicAreaM49Partner  = Dimension("geographicAreaM49Partner",  values$query_country),
                    measuredElementTrade      = Dimension("measuredElementTrade",      cl_elem$code),
                    measuredItemCPC           = Dimension("measuredItemCPC",           values$query_item),
-                   timePointYears            = Dimension("timePointYears",            as.character(input$query_years[1]:input$query_years[2]))
+                   timePointYears            = Dimension("timePointYears",            as.character(values$query_years[1]:values$query_years[2]))
                  )
              )
 
@@ -1249,14 +1249,7 @@ server <- function(input, output, session) {
 
            values$new_sws_data_mirr_tot <- GetData(key) # XXX
 
-           #GetData(key)
            values$new_sws_data_mirr_tot
-
-           ##   # TODO: error handling
-           ##   values$new_sws_data_total <- GetData(key)
-           ##   #saveRDS(values$new_sws_data_total, paste0("c:/Users/chr/Desktop/zzz/", as.numeric(as.POSIXct(Sys.time())), ".rds"))
-           ##   #res <- GetData(key)
-           ##   values$new_sws_data_total
         } else {
           NULL
         }
@@ -1266,7 +1259,8 @@ server <- function(input, output, session) {
   )
 
   observeEvent(
-    c(TokenValidator(), values$query_country, values$query_item, input$query_flow, input$query_years, input$opt_showprod),
+    c(TokenValidator(), values$query_country, values$query_item,
+      input$query_flow, values$query_years, input$opt_showprod),
     {
       ################# PRODUCTION #################
       values$data_prod <- {
@@ -1284,7 +1278,7 @@ server <- function(input, output, session) {
                   geographicAreaM49     = Dimension("geographicAreaM49",     values$query_country),
                   measuredElementSuaFbs = Dimension("measuredElementSuaFbs", "5510"),
                   measuredItemFbsSua    = Dimension("measuredItemFbsSua",    values$query_item),
-                  timePointYears        = Dimension("timePointYears",        as.character(input$query_years[1]:input$query_years[2]))
+                  timePointYears        = Dimension("timePointYears",        as.character(values$query_years[1]:values$query_years[2]))
                 )
             )
 
@@ -1302,7 +1296,8 @@ server <- function(input, output, session) {
   )
 
   observeEvent(
-    c(TokenValidator(), values$query_country, values$query_item, input$query_flow, input$query_years),
+    c(TokenValidator(), values$query_country, values$query_item,
+      input$query_flow, values$query_years),
     {
       ################# TOTAL #####################
       values$data_total <- {
@@ -1321,7 +1316,7 @@ server <- function(input, output, session) {
                 geographicAreaM49    = Dimension("geographicAreaM49",    values$query_country),
                 measuredElementTrade = Dimension("measuredElementTrade", cl_elem$code),
                 measuredItemCPC      = Dimension("measuredItemCPC",      values$query_item),
-                timePointYears       = Dimension("timePointYears",       as.character(input$query_years[1]:input$query_years[2]))
+                timePointYears       = Dimension("timePointYears",       as.character(values$query_years[1]:values$query_years[2]))
               )
           )
 
@@ -1331,8 +1326,6 @@ server <- function(input, output, session) {
         # TODO: error handling
         values$new_sws_data_total <- GetData(key)
 
-        #saveRDS(values$new_sws_data_total, paste0("c:/Users/chr/Desktop/zzz/", as.numeric(as.POSIXct(Sys.time())), ".rds"))
-        #res <- GetData(key)
         values$new_sws_data_total
       }
       ################# / TOTAL #####################
@@ -1356,7 +1349,7 @@ server <- function(input, output, session) {
                   geographicAreaM49    = Dimension("geographicAreaM49",    values$codelists$countries$code),
                   measuredElementTrade = Dimension("measuredElementTrade", uv_element),
                   measuredItemCPC      = Dimension("measuredItemCPC",      values$query_item),
-                  timePointYears       = Dimension("timePointYears",       as.character(input$query_years[1]:input$query_years[2]))
+                  timePointYears       = Dimension("timePointYears",       as.character(values$query_years[1]:values$query_years[2]))
                 )
             )
 
@@ -1387,7 +1380,7 @@ server <- function(input, output, session) {
                 geographicAreaM49Partner  = Dimension("geographicAreaM49Partner",  values$codelists$countries$code),
                 measuredElementTrade      = Dimension("measuredElementTrade",      cl_elem$code),
                 measuredItemCPC           = Dimension("measuredItemCPC",           values$query_item),
-                timePointYears            = Dimension("timePointYears",            as.character(input$query_years[1]:input$query_years[2]))
+                timePointYears            = Dimension("timePointYears",            as.character(values$query_years[1]:values$query_years[2]))
               )
           )
 
@@ -1400,10 +1393,7 @@ server <- function(input, output, session) {
 
         # TODO: error handling
         values$new_sws_data_bilat <- copy(d)
-        #saveRDS(values$new_sws_data_bilat, paste0("c:/Users/chr/Desktop/zzz/", as.numeric(as.POSIXct(Sys.time())), ".rds"))
 
-
-        #res <- GetData(key)
         values$new_sws_data_bilat
       }
       ################# / BILATERAL #####################
@@ -1445,7 +1435,7 @@ server <- function(input, output, session) {
             geographicAreaM49Partner = unique(d$geographicAreaM49Partner),
             measuredElementTrade = unique(d$measuredElementTrade),
             measuredItemCPC = unique(d$measuredItemCPC),
-            timePointYears = as.character(input$query_years[1]:input$query_years[2])
+            timePointYears = as.character(values$query_years[1]:values$query_years[2])
           ),
           on = c("geographicAreaM49Reporter", "geographicAreaM49Partner", "measuredElementTrade", "measuredItemCPC", "timePointYears")
         ]
@@ -1520,7 +1510,7 @@ server <- function(input, output, session) {
 
       d_stats <- merge(d_perc, d_stats, by = by_vars, all.x = TRUE)
 
-      # TODO: use the county specific thresholds
+      # TODO: use the country specific thresholds
       d_stats <- d_stats[median >= 1000]
 
       d_stats[, sum := NULL]
@@ -1564,7 +1554,7 @@ server <- function(input, output, session) {
       if (nrow(d) > 0) {
         # XXX: probably this just should throw an error so that everything stops
         # (the tool itself does not make sense if there are no totals)
-        d <- d[CJ(geographicAreaM49 = unique(d$geographicAreaM49), measuredElementTrade = unique(d$measuredElementTrade), measuredItemCPC = unique(d$measuredItemCPC), timePointYears = as.character(input$query_years[1]:input$query_years[2])), on = c("geographicAreaM49", "measuredElementTrade", "measuredItemCPC", "timePointYears")]
+        d <- d[CJ(geographicAreaM49 = unique(d$geographicAreaM49), measuredElementTrade = unique(d$measuredElementTrade), measuredItemCPC = unique(d$measuredItemCPC), timePointYears = as.character(values$query_years[1]:values$query_years[2])), on = c("geographicAreaM49", "measuredElementTrade", "measuredItemCPC", "timePointYears")]
       }
 
       d <- mydenormalise(d)
@@ -1580,8 +1570,6 @@ server <- function(input, output, session) {
       col_headers <- set_hot_colnames(d)
 
       col_widths <- set_hot_colwidths(d, hide = input$opt_hideflags)
-
-      #rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE) %>% hot_col("plot", renderer = htmlwidgets::JS("renderSparkline"))
 
       # Notice that there is an additional column fixed, with respect to bilaral plot
       rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE, rowHeaders = FALSE) %>%
@@ -1700,7 +1688,6 @@ server <- function(input, output, session) {
         flow <- substr(d$measuredElementTrade[input$table_outliers_select$select$r], 1, 2)
         d <- d[measuredItemCPC == item & substr(measuredElementTrade, 1, 2) == flow]
         values$data_outliers <- melt.data.table(d, id.vars = c("measuredItemCPC", "measuredElementTrade"), value.name = "Value", variable.name = "timePointYears", variable.factor = FALSE)
-        # XYZ
 
         d_outliers <-
           detect_outliers(
@@ -1718,10 +1705,9 @@ server <- function(input, output, session) {
             }),
             footer =
               tagList(
-                #modalButton("Close"),
                 actionButton("showtotals", "Analyze"),
                 #actionButton("not_outlier", "Not an outlier")
-                actionButton("not_outlier", "Ignore")
+                modalButton("Ignore")
               )
           )
         )
@@ -2069,7 +2055,8 @@ server <- function(input, output, session) {
 
       values$data_mirr_bilat <- {
 
-        req(TokenValidator(), values$query_country, values$query_item, input$query_flow, input$query_years, input$query_bil_partner)
+        req(TokenValidator(), values$query_country, values$query_item,
+            input$query_flow, values$query_years, input$query_bil_partner)
 
         d <- data_corr_bilat_plots()
 
@@ -2087,7 +2074,7 @@ server <- function(input, output, session) {
                 geographicAreaM49Partner  = Dimension("geographicAreaM49Partner",  values$query_country),
                 measuredElementTrade      = Dimension("measuredElementTrade",      flows_mirr),
                 measuredItemCPC           = Dimension("measuredItemCPC",           values$query_item),
-                timePointYears            = Dimension("timePointYears",            as.character(input$query_years[1]:input$query_years[2]))
+                timePointYears            = Dimension("timePointYears",            as.character(values$query_years[1]:values$query_years[2]))
               )
           )
 
@@ -2100,12 +2087,7 @@ server <- function(input, output, session) {
 
         if (nrow(d) > 0) {
 
-          #d[
-          #  substr(measuredElementTrade, 3, 3) %in% 2:3,
-          #  Value := Value * ifelse(substr(measuredElementTrade, 1, 2) == "56", 1 / CIFFOB, CIFFOB)
-          #]
-
-          d <- d[CJ(geographicAreaM49Reporter = unique(d$geographicAreaM49Reporter), geographicAreaM49Partner = unique(d$geographicAreaM49Partner), measuredElementTrade = unique(d$measuredElementTrade), measuredItemCPC = unique(d$measuredItemCPC), timePointYears = as.character(input$query_years[1]:input$query_years[2])), on = c("geographicAreaM49Reporter", "geographicAreaM49Partner", "measuredElementTrade", "measuredItemCPC", "timePointYears")]
+          d <- d[CJ(geographicAreaM49Reporter = unique(d$geographicAreaM49Reporter), geographicAreaM49Partner = unique(d$geographicAreaM49Partner), measuredElementTrade = unique(d$measuredElementTrade), measuredItemCPC = unique(d$measuredItemCPC), timePointYears = as.character(values$query_years[1]:values$query_years[2])), on = c("geographicAreaM49Reporter", "geographicAreaM49Partner", "measuredElementTrade", "measuredItemCPC", "timePointYears")]
         }
 
         d[]
@@ -2423,7 +2405,7 @@ server <- function(input, output, session) {
     values$sel_bilat$partner,
     {
       req(TokenValidator(), values$query_country, values$query_item,
-          input$query_flow, input$query_years, input$query_bil_partner,
+          input$query_flow, values$query_years, input$query_bil_partner,
           input$corr_year2correct, input$corr_variable2correct)
 
       if (input$corr_year2correct != '') { # XXX in req()?
@@ -3257,6 +3239,18 @@ server <- function(input, output, session) {
 
       DT::datatable(d, rownames = FALSE)
     })
+
+   output$corr_myflags <-
+     renderTable({
+       flags
+     })
+
+   observeEvent(
+     input$query_years,
+     {
+       values$query_years <- input$query_years
+     }
+   )
 
 }
 
