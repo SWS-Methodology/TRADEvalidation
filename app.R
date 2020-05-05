@@ -2587,7 +2587,7 @@ server <- function(input, output, session) {
             flagObservationStatus =
               ifelse(
                 substr(measuredElementTrade, 3, 3) == "3",
-                aggregateObservationFlag(flagObservationStatus[substr(measuredElementTrade, 3, 3) != "3"]),
+                aggregateObservationFlag(flagObservationStatus[substr(measuredElementTrade, 3, 3) != "3"], flagTable = flagWeightTable_status),
                 flagObservationStatus
               ),
             flagMethod = ifelse(substr(measuredElementTrade, 3, 3) == "3", "i", flagMethod)
@@ -2700,7 +2700,7 @@ server <- function(input, output, session) {
             flagObservationStatus =
               ifelse(
                 substr(measuredElementTrade, 3, 3) == "3",
-                aggregateObservationFlag(flagObservationStatus),
+                aggregateObservationFlag(flagObservationStatus, flagTable = flagWeightTable_status),
                 flagObservationStatus
               ),
             flagMethod = ifelse(substr(measuredElementTrade, 3, 3) == "3", "i", flagMethod)
@@ -2725,7 +2725,7 @@ server <- function(input, output, session) {
           .(
             new_Value = sum(Value), # Yes, even UV, will be recalculated below
             # XXX Japan case
-            new_flagObservationStatus = aggregateObservationFlag(flagObservationStatus),
+            new_flagObservationStatus = aggregateObservationFlag(flagObservationStatus, flagTable = flagWeightTable_status),
             new_flagMethod = ifelse(.N > 1, "s", flagMethod)
           ),
           by = .(geographicAreaM49 = geographicAreaM49Reporter, measuredElementTrade, measuredItemCPC, timePointYears)
@@ -2786,7 +2786,7 @@ server <- function(input, output, session) {
   #        flagObservationStatus =
   #          ifelse(
   #            substr(measuredElementTrade, 3, 3) == "3",
-  #            aggregateObservationFlag(flagObservationStatus[substr(measuredElementTrade, 3, 3) != "3"]),
+  #            aggregateObservationFlag(flagObservationStatus[substr(measuredElementTrade, 3, 3) != "3"], flagTable = flagWeightTable_status),
   #            flagObservationStatus
   #          ),
   #        flagMethod = ifelse(substr(measuredElementTrade, 3, 3) == "3", "i", flagMethod)
@@ -2801,7 +2801,7 @@ server <- function(input, output, session) {
   #        .(
   #          new_Value = sum(Value), # Yes, even UV, will be recalculated below
   #          # XXX Japan case
-  #          new_flagObservationStatus = aggregateObservationFlag(flagObservationStatus),
+  #          new_flagObservationStatus = aggregateObservationFlag(flagObservationStatus, flagTable = flagWeightTable_status),
   #          new_flagMethod = ifelse(.N > 1, "s", flagMethod)
   #        ),
   #        by = .(geographicAreaM49 = geographicAreaM49Reporter, measuredElementTrade, measuredItemCPC, timePointYears)
@@ -3118,7 +3118,7 @@ server <- function(input, output, session) {
           observationStatusFlag :=
             ifelse(
               substr(measuredElementTrade, 3, 3) == "3",
-              aggregateObservationFlag(flagObservationStatus),
+              aggregateObservationFlag(flagObservationStatus, flagTable = flagWeightTable_status),
               flagObservationStatus)
         ]
 
@@ -3253,7 +3253,6 @@ server <- function(input, output, session) {
        values$query_years <- input$query_years
      }
    )
-
 }
 
 shinyApp(ui = ui, server = server)

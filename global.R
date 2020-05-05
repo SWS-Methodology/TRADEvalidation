@@ -54,11 +54,11 @@ publication_sources <-
   as.data.table(
     matrix(
       c(
-        'National publication/website', '', 'p',
-        'UNCOMTRADE official', '', 'p',
-        'UNCOMTRADE estimation', 'X', 'p',
-        'Trademap official', '', 'p',
-        'Trademap mirror data', 'T', 'p',
+        'National publication/website',  '', 'p',
+        'UNCOMTRADE official',           '', 'p',
+        'UNCOMTRADE estimation',        'X', 'p',
+        'Trademap official',             '', 'p',
+        'Trademap mirror data',         'T', 'p',
         'Other international/regional publication/website', 'T', 'p'
       ),
       ncol = 3,
@@ -98,6 +98,19 @@ flags <- tibble::tribble(
   'I = Imputed value [missing quantity]',
   's = Calculated as sum (e.g. sum of multiple HS codes)'
 )
+
+
+flagWeightTable_status <-
+  tibble::tribble(
+    ~flagObservationStatus, ~flagObservationWeights,
+    '',                    0.99,
+    'X',                   0.90,
+    'T',                   0.80,
+    'E',                   0.75,
+    'I',                   0.50,
+    'M',                   0.00
+  )
+
 
 bilateral_plot <- function(data, title = NULL, xlab = "Year", ylab = NULL) {
   ggplot(data, aes(x = timePointYears, y = value, group = variable)) +
