@@ -840,7 +840,14 @@ server <- function(input, output, session) {
 
       years <- c("", rev(sort(unique(x$timePointYears))))
 
-      selectInput("corr_year2correct", "Year to correct:", years)
+      years <- years[years >= 2014]
+
+      if (length(years) == 0) {
+        p("No years to correct.")
+      } else {
+        selectInput("corr_year2correct", "Year to correct:", years)
+      }
+
     })
 
   data_corr_bilat_plots <-
