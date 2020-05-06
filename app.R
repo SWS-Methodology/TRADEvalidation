@@ -34,7 +34,7 @@ ui <-
       column(3, uiOutput("query_country_ui")),
       column(1, selectInput("query_flow", "Flow", c("", "import", "export"))),
       column(3, uiOutput("query_item_ui")),
-      column(3, sliderInput("query_years", "Years to show", min = 2000, max = MAX_YEAR, c(MAX_YEAR - 15, MAX_YEAR), sep = ""))
+      column(3, sliderInput("query_years", "Years to show", min = 2000, max = MAX_YEAR, c(MAX_YEAR - 10, MAX_YEAR), sep = ""))
     ),
 
     tabsetPanel(
@@ -43,7 +43,7 @@ ui <-
 
       tabPanel(
         "Welcome",
-        uiOutput("welcome")
+        uiOutput("welcome", style = "width: 1000px; margin: auto;")
       ),
 
       tabPanel(
@@ -69,7 +69,7 @@ ui <-
           column(2, selectInput("opt_hideflags", "Show flags?", c(FALSE, TRUE))),
           column(2, selectInput("opt_showmirror", "Show mirror?", c(FALSE, TRUE))),
           column(2, selectInput("opt_showprod", "Show Production?", c(FALSE, TRUE))),
-          column(4, sliderInput("share_trade", "Minimum trade share of partner", min = 0, max = 50, 20, step = 5, post = "%", width = "100%")),
+          column(4, sliderInput("share_trade", "Minimum trade share of partner", min = 0, max = 50, 0, step = 5, post = "%", width = "100%")),
           column(2, actionButton("undo", "Undo last modification"))
         ),
         actionButton("toggle_table_total", "show/hide", class = "toggle_visibility", width = "100%"),
@@ -207,14 +207,14 @@ ui <-
       tabPanel(
         "Help",
         div(HTML(markdown::markdownToHTML("files/help.Rmd", fragment.only = TRUE)), id = "helpdoc", style = "width: 1000px; margin: auto;")
-      ),
+      ) #,
 
-      tabPanel(
-        "debug",
-        textOutput("debug"),
-        textOutput("debug1"),
-        textOutput("tokenValidator")
-      )
+      #tabPanel(
+      #  "debug",
+      #  textOutput("debug"),
+      #  textOutput("debug1"),
+      #  textOutput("tokenValidator")
+      #)
     )
   )
 
