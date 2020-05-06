@@ -1,0 +1,373 @@
+---
+title: '**Interactive tool for trade data validation**'
+author:
+  Christian A. Mongeau Ospina\
+
+  Food and Agriculture Organization of the United Nations
+date: "`r format(Sys.time(), '%e %B %Y')`"
+output:
+  word_document: default
+  pdf_document:
+    fig_height: 2
+  html_document: default
+---
+
+# Trade validation tool
+
+The interactive tool for trade data validation allows to query the total and bilateral trade datasets,
+and eventually apply corrections to the bilateral flows.
+Any modification to the bilateral flows is immediately visible in the tool.
+Once the validation is completed, modified data can be sent back to SWS,
+where its can be saved to the dataset.
+
+## Authentication
+
+To use the tool, you will need to authenticate to the SWS.
+The steps for doing so are (all mentioned datasets are in the "Trade" domain):
+
+1. create a session in the "Total Trade (CPC)" dataset
+  1. in the country field, insert the country name/code of the reporter that you will validate
+  1. in the remaining fields you can put whatever you like
+  1. click on "Run"<br /><br />
+     ![Query total][query_total]
+  1. rename the session to something that you remember (here it will be "trade_CO_TOT")<br /><br />
+     ![Rename total][rename_total]
+1. create a session in the "Completed Trade Flow (CPC)" dataset
+  1. in the first country field, insert the country name/code of the reporter that you will validate
+  1. select the other dimensions
+  1. click on "Run"<br /><br />
+     ![Query complete][query_complete]
+  1. rename the session to something that you remember (here it will be "trade_CO_BIL")<br /><br />
+     ![Rename complete][rename_complete]
+  1. click on "Run plugin" in the session on the complete trade dataset (in the example above, in trade_CO_BIL)<br /><br />
+     ![Run plugin][run_plugin]
+  1. select "[FAODOMAIN/mongeau] TRADEvalidation"
+  1. select the session you created in the "Total Trade (CPC)" dataset
+  1. click on "Get debug token"<br /><br />
+     ![Get token][get_token]
+  1. copy the token<br /><br />
+     ![Copy token][copy_token]
+1. open <http://hqlprsws1.hq.un.fao.org:3838/TRADEvalidation_test/> (well, this.)
+1. click on the red button on the upper left corner on the page (it says "Token")<br /><br />
+   ![Click token][click_token]
+1. paste the token you copied before and click "OK"<br /><br />
+   ![Enter token][enter_token]
+
+After you do these steps,
+if everything goes fine,
+you will see your username in the button in the upper left corner (and it should become green).
+
+![Successful authentication][successful_authentication]
+
+You are now authenticated, and can start/continue your validation.
+
+Please note that the country you selected in your session (i.e., the country
+that you will validate), will appear in the "Country" menu. At this point
+you can start your validation by
+
+1. selecting the "Outliers" tab
+1. selecting the "Main items" tab
+
+If you want to have a look at a specific flow/item you can choose this combination by filling the "Flow" and "Item" menus in the upper side of the page.
+Also, you can modify the start and end years in the "Years to show" sliders,
+but once you do so avoid changing them in middle of a validation of a flow/item combination
+(to see why, read the final notes at the bottom of the page).
+
+Below are described the contents of the tool's tabs.
+
+## Tool tabs
+
+### Welcome
+
+This is the first tab you see when you arrive here.
+It contains a small reminder on what you find and a "recommended workflow".
+If you don't feel to read all this help document again,
+just go there to have a brief reminder of this tool's features.
+
+
+### Outliers
+
+When you select this tab,
+total imports and exports for **all** items will be
+downloaded and the outliers routine will be applied to them.
+A table with the flow/items that display at least one outlier will be displayed.
+The outlier(s) will be higlighted in red.
+
+When you click on a cell, a popup window will display the value / quantity and utnit value of that flow/item,
+and the outlier will be shown with a black point.
+You can select to "Ignore" the item
+(this will simply close the popup),
+or "Analyze".
+If you select the latter,
+you will be redirected to the "Total" tab (see below).
+
+
+### Main items
+
+Here you will see the top-10 items for the country,
+grouped by flow
+(imports and exports)
+and type of item
+(tons, heads, 1,000 heads).
+
+Not necessarily the flow/items here contain outliers,
+but given that these flow/items represent the most important ones for the country,
+you will need to have a look in any case.
+
+As for the "Outliers" tab,
+when you select a cell,
+you will be redirected to the "Total" tab
+(no popup window will appear, you will be redirected right away).
+
+By default, only the main flow/items by quantity are shown.
+If you want that also the main items by value appear,
+you need to click on the box "Also main items by monetary value?".
+
+
+#w# Total
+
+This tab is splitted into four components.
+The first one contains options and an "undo last modification" button.
+The second one is a table with values,
+quantities and unit values for the selected flow/item at the **total** trade level.
+The third one shows by default the plot of the series in the tab above (and eventually other information).
+The fourth one (under the plot),
+shows by default some bilateral flows of the selected total.
+
+The options are:
+
+- "Show flags?" will show flags of the data if TRUE,
+  hide them if FALSE
+  (by default this is FALSE, so that you can focus on the data; if you need to understand if data are official, estimates, etc., set it to TRUE).
+- "Show mirror?" will download all bilateral flows of the partners for the selected flow/item,
+  and will aggregate them so that you can see what the sum of other countries say about that item for the selected country.
+  By default this is FALSE,
+  mainly because the data that needs to be downloaded is quite large,
+  so it will slow down the app.
+  Set it to TRUE if you are ready to wait.
+- "Show Production?" will show production data taken from the "SUA unbalanced" dataset.
+  This is probably more useful for exports,
+  as countries usually export less than what they produce
+  (actually, you should consider also imports and eventualy stocks, so that X <= P + M - S (exports are less or equal availability),
+  but in any case having a look also to production data can be useful).
+  By default this is FALSE,
+  if you set it to TRUE the time required to get the data is not that much.
+- "Minimum trade share of partner" is a number X between 0% and 50%
+  (by default 20%)
+  that will filter out from the bilateral table countries that never accounted for X% in the total flow for the selected item of the partner.
+  For instance,
+  if you set this to 30%,
+  you will see all partners in the table at the bottom of the page that in at least one year accounted for at least 30%.
+  This is useful so that you have a look either to main partners
+  (those that usually account a lot for the reporter)
+  or countries that because an outlier show a high percentage over the partner's flow.
+  You will notice that even if the default is 20%,
+  sometimes it scales automatically to a lower number:
+  this happens because no partner accounted for 20%,
+  so the maximum share will be selected automatically.
+
+There is an "Undo last modification" button, but what it does will be explained later.
+
+The first table contains data for the total flow for the selected flow/item/years:
+values, quantities, and unit values.
+When you do corrections in the "Bilateral" tab,
+this table will be updated with corrected data.
+
+The plots under the total table,
+shows the data in that table.
+It will also show mirror and/or production data if these options are set to TRUE.
+Moreover, if you click on one cell of the table that contains bilateral flows (under the plots),
+you will see that partner series appear also in the plots.
+
+In the bottom table,
+you see bilateral data for the selected flow/item.
+As explained above,
+by default you will see only the "main" partners (as per "Minimum trade share of partner" option).
+If you really need to see **all** partners you can set the "Minimum trade share of partner" to 0 (zero).
+Be aware that if you do so,
+the browser will be slowed down a bit.
+In any case, if you click on a cell, if it contains data, the series for the partner you selected will also be shown in the plots.
+
+
+### Bilateral
+
+In this tab you can see bilateral flows,
+with some useful information,
+and can correct them, if required.
+
+Select a partner in the "Partner" menu.
+Note that:
+1) only available partners for the selected flow/item are shown,
+so you don't need to figure out what countries to choose;
+2) the partner shuould be automatically populated if you select it in the bilaterals that appear in the "Total" tab.
+
+If there are years that can be corrected (corrections can be done just after 2014, included),
+then available years will be displayed in the "Year to correct" menu.
+
+You can select what variable to correct in the "Variable to correct" menu (it can be either "Quantity" or "Value").
+
+There are different types of corrections that can be applied in the "Type of correction" menu:
+
+* **None**:
+  This should be used to confirm that an outlier is OK and should not be corrected.
+  It can seem weird to correct by not applying any correction,
+  but this may be thought more as a signal for future analysts (or yourself) that even if the observation seems an outlier,
+  it was confirmed not to be so and who will again find this figure will not lose any time by revalidating it (is they read the metadata).
+* **Measurement factor**:
+  This can be useful if the quantity or value may have been reported with a wrong measurement unit,
+  by a factor of 10.
+  If you choose this option,
+  it will be displayed below if the ratio of the unit value to the median unit value is "near" a factor of 10,
+  and will suggest which factor is the most likely.
+  More technically,
+  the ratio between the unit value and the median unit value is computed;
+  if this ratio is greater than or less than (with a 10% approximation)
+  $10^(round(log10(ratio)))$
+  then it means that the transaction was likely reported with a unit of measurement (of a factor of 10) issue.
+* **Mirror flow**:
+  Use the flow of the partner, if it exists
+  (if it does not, you will get a feedback indicating that).
+* **Outlier correction**:
+  It is possible to use three different types of correction
+  (in all cases, the values of these figures will be printed,
+  if available, so that you can choose the most appropriate):
+    - **Median partners**: median with respect to all partners,
+      that is, the median for the reporter's trade
+      (import or export specific)
+      in the year of interest of the analysed commodity to all its partner is used.
+    - **Median world**: median of the unit value of all reporters to all partners,
+      that is, the median of all the reporters that traded
+      (import or export specific)
+      the analysed commodity in the year of interest is used.
+    - **Moving average**: the three year-moving average
+      (starting from the year previous to the one analysed)
+      of the unit value of the trade flow of the commodity of the analysed reporter.
+* **Publication/website**: when you find data on a publication or website.
+* **Expert knowledge**: literature or otherwise justified figure,
+  in other words,
+  this is a figure that you set based on your own estimate.
+
+
+When you select one type of correction,
+appropriate submenus will be shown if required,
+and there is some information on what would be the effect of applying that correction.
+
+When you wan to actually see the effect of a correction both at the bilateral level and at the total level,
+click on "Apply correction".
+This will make the corrected data to be sent to the plots in this tab,
+to the bilateral table in the "Total" tab,
+and consequently to the table with the totals in the "Total" tab.
+
+If you do not want that correction to be saved,
+click on the "Undo last modification" button.
+The button is replicated both in this tab and in the "Total" tab.
+When you do so,
+the status of the tables and plots will be brought back to the status they were just after you clicked on "Apply correction".
+
+If you are happy with your correction,
+you can send it to the list of corrections that will be saved by clicking on "Confirm correction".
+Note that this will accumulate the correction in a pool of corrections that will be saven in the "Save" tab.
+More on this later.
+
+### Corrections
+
+This tab contains a list of existing corrections.
+
+You can remove corrections that are **already** saved,
+by clicking on "Delete selected correction".
+Again, this wil remove corrections that were saved (those shown in the "Corrections" tab),
+not the corrections that you have not committed yet (those shown in the "Save" tab).
+
+
+### Save
+
+This tab contains a list of corrections that are ready to be saved.
+To do so,
+you need to click on "Send to SWS datasets".
+What this action will do is that all corrections will be stored in the "correcitons table",
+which is a dataset of already saved corrections,
+and will send corrected data to SWS.
+
+You will need to click on "Send to SWS datasets" for each combination of flow/items that you corrected.
+If you do not do it,
+and select another flow, item or years, you will lose all your corrections.
+
+
+### Raw data / MAP
+
+This was imported from the previous Shiny tool,
+but probably will require some re-writing because it seems not to have been used much after all
+(likely it was not made clear how this should be used).
+
+Changes to the trademap need to be cleared by officers,
+so contact one of them if you need to change a map entry.
+
+### Help
+
+This tab you are reading right now.
+
+
+## Final notes / recommendations
+
+Please consider that the tool was designed so that you can validate one country at a time,
+and do so by going by flow and item.
+For instance,
+let's say you need to validate Colombia,
+then after you do the authentication steps,
+you go by flow/item combinations,
+e.g., you first validate all imports of wheat,
+then validate
+all export of bananas,
+then... you got it.
+"Validate all" means that,
+e.g., you check if the total imports of wheat is an outlier,
+then if it seems so you go and validate all partners that make sense to validate
+(usually the "main" partners)
+with the tools available in the tool
+(e.g., apply a measurement factor, a mirror flow, etc.)
+and once all your corrections to bilateral flows of imports of whats are done,
+save corrections and send the data to SWS. When you **end** with imports of wheat,
+you do the same for exports of bananas.
+When you finish with exports of bananas... you got it.
+When you finish analysis and (eventually) corrections for all flows and all items,
+you can conclude your validation by finally going to SWS and confirming that data is to be saved in the two sessions you created.
+
+*There is a technical reason why you should validate one flow/item at a time:
+each time you select another flow or item
+(and for that matter, even if you change the years),
+the tool will make a new query and you will lose all your corrections.*
+
+You can do any query you like within the tool,
+but for validation purposes,
+limit yourself to the flow/items that are shown in the "Outliers" tab and in the "Main items" tab,
+as they will show the flow/items that may be outliers and those that are most important for the country,
+respectively.
+
+The tool allows you to do "multiple corrections" to correct ALL bilateral flows in one go.
+Please, use this very cautiously.
+If you find, e.g., that ALL partners's quantities are to be divided by 1,000,
+this may be better handled at the source of the data.
+It could be useful to liase with UNSD so that in a coordinated manner these flows get fixed.
+All agencies will benefit from this.
+Also, another reason why this needs to be used conservatively is that it
+will be difficult to "undo" all corrections (after they are saved) if they were made by mistake
+(it happens: for instance you selected 100 when indeed you wanted to select 1,000).
+Finally, it can be that you just spotted that the main partner needed to be fixed by a factor,
+then assumed also all other partners needed such adjustment,
+but later find that seen from the partner side all other corrections do not make sense.
+
+
+
+
+[query_total]: assets/query_total.png
+[rename_total]: assets/rename_total.png
+[query_complete]: assets/query_complete.png
+[rename_complete]: assets/rename_complete.png
+[run_plugin]: assets/run_plugin.png
+[get_token]: assets/get_token.png
+[copy_token]: assets/copy_token.png
+[click_token]: assets/click_token.png
+[enter_token]: assets/enter_token.png
+[successful_authentication]: assets/successful_authentication.png
+
+<!-- vi: set ft=markdown: -->

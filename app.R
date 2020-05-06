@@ -19,6 +19,10 @@ ui <-
       tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
     ),
 
+    tags$head(tags$style("#helpdoc img {border-style: solid; border-width: 3px;}")),
+
+    tags$head(tags$style("#helpdoc li {padding: 6px;}")),
+
     tags$head(tags$style(".shiny-notification {width: 500px;}")),
 
     tags$head(tags$style(HTML('td {white-space: nowrap !important;}'))),
@@ -202,7 +206,7 @@ ui <-
 
       tabPanel(
         "Help",
-        verbatimTextOutput("help")
+        div(HTML(markdown::markdownToHTML("files/help.Rmd", fragment.only = TRUE)), id = "helpdoc", style = "width: 1000px; margin: auto;")
       ),
 
       tabPanel(
@@ -2863,11 +2867,6 @@ server <- function(input, output, session) {
       values$corrections <- d
     }
   )
-
-  output$help <-
-    renderText(
-      print("A complete description show go here.")
-    )
 
   observeEvent(
     input$send_to_datasets,
