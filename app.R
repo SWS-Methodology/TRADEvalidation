@@ -1963,8 +1963,6 @@ server <- function(input, output, session) {
       # XXX: parameterise interval (actually the mean at this point should be completely moving)
       values$outliers_found <- detect_outliers(d, method = "simple", params = values$outliers_params)
 
-        browser()
-
       threshold_used <- values$outliers_params$outlier_threshold[area == values$query_country]
 
       if (nrow(threshold_used) > 0) {
@@ -2040,7 +2038,9 @@ server <- function(input, output, session) {
         comments = values$rendered_outliers$m_out,
         rowHeaders = FALSE,
         selectCallback = TRUE) %>%
-          hot_col(names(values$rendered_outliers$d_data)[grep("^\\d{4}$", names(values$rendered_outliers$d_data))], format = "0,0")
+          hot_col(names(values$rendered_outliers$d_data)[grep("^\\d{4}$", names(values$rendered_outliers$d_data))], format = "0,0") %>%
+          hot_col("measuredItemCPC", width = "300")
+
     })
 
   output$tokenValidator <-
