@@ -1708,6 +1708,9 @@ server <- function(input, output, session) {
     input$table_outliers_select$select,
     {
       d <- as.data.table(hot_to_r(input$table_outliers))
+
+      d[, measuredItemCPC := sub(" - .*", "", measuredItemCPC)]
+
       item <- d$measuredItemCPC[input$table_outliers_select$select$r]
 
       if (item != "NA") { # Yes, a character
@@ -1968,6 +1971,12 @@ server <- function(input, output, session) {
 
         d_data[, flow := substr(measuredElementTrade, 1, 2)]
         d_out[, flow := substr(measuredElementTrade, 1, 2)]
+
+        d_data <- merge(d_data, values$codelists$items, by.x = "measuredItemCPC", by.y = "code", all.x = TRUE)
+
+        d_data[!is.na(measuredItemCPC), measuredItemCPC := paste(measuredItemCPC, description, sep = " - ")]
+
+        d_data[, description := NULL]
 
         d_data <- add_na_rows(d_data, split = c("flow", "measuredItemCPC"))
         d_out <- add_na_rows(d_out, split = c("flow", "measuredItemCPC"))
