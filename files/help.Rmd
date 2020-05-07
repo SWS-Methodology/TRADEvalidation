@@ -266,20 +266,10 @@ the status of the tables and plots will be brought back to the status they were 
 
 If you are happy with your correction,
 you can send it to the list of corrections that will be saved by clicking on "Confirm correction".
-Note that this will accumulate the correction in a pool of corrections that will be saven in the "Save" tab.
+Note that this will accumulate the correction in a pool of corrections that will be saven in the "TO COMMIT" tab.
 More on this later.
 
-### Corrections
-
-This tab contains a list of existing corrections.
-
-You can remove corrections that are **already** saved,
-by clicking on "Delete selected correction".
-Again, this wil remove corrections that were saved (those shown in the "Corrections" tab),
-not the corrections that you have not committed yet (those shown in the "Save" tab).
-
-
-### Save
+### TO COMMIT
 
 This tab contains a list of corrections that are ready to be saved.
 To do so,
@@ -291,6 +281,16 @@ and will send corrected data to SWS.
 You will need to click on "Send to SWS datasets" for each combination of flow/items that you corrected.
 If you do not do it,
 and select another flow, item or years, you will lose all your corrections.
+
+### Corrections saved
+
+This tab contains a list of existing corrections.
+
+You can remove corrections that are **already** saved,
+by clicking on "Delete selected correction".
+Again, this wil remove corrections that were saved (those shown in the "Corrections saved" tab),
+not the corrections that you have not committed yet (those shown in the "TO COMMIT" tab).
+
 
 
 ### Raw data / MAP
