@@ -1507,7 +1507,7 @@ server <- function(input, output, session) {
 
         d <- add_na_rows(d, split = "geographicAreaM49Partner")
 
-        rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE, row_highlight = 1:3, rowHeaders = FALSE) %>%
+        rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE, row_highlight = 1:3, rowHeaders = FALSE, height = 600) %>%
           hot_col("plot", renderer = htmlwidgets::JS("renderSparkline")) %>%
           hot_cols(fixedColumnsLeft = 4, colWidths = col_widths) %>%
           hot_col(col_headers[grep("^\\d{4}$", col_headers)], format = "0,0")
