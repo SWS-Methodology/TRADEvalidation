@@ -172,7 +172,7 @@ ui <-
       ),
 
       tabPanel(
-        "To commit",
+        "TO COMMIT",
         actionButton("send_to_datasets", "Send to SWS datasets"),
         verbatimTextOutput("save_result_bil"),
         verbatimTextOutput("save_result_tot"),
