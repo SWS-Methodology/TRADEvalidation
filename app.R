@@ -52,7 +52,7 @@ ui <-
         "Outliers",
         fluidRow(
           # FIXME: make MAX_YEAR to remove last year with all missing data
-          column(4, sliderInput("out_years", "Years to check", min = 2000, max = MAX_YEAR, c(MAX_YEAR - 4, MAX_YEAR), sep = "")),
+          column(4, sliderInput("out_years", "Years to check", min = MAX_YEAR - 10, max = MAX_YEAR, c(MAX_YEAR - 4, MAX_YEAR), sep = "")),
           column(4, uiOutput("out_ratio_ui")),
           column(4, uiOutput("out_growth_ui"))
         ),
@@ -1559,7 +1559,7 @@ server <- function(input, output, session) {
 
       d_stats <- add_na_rows(d_stats, split = "element")
 
-      rhandsontable(d_stats, selectCallback = TRUE) %>%
+      rhandsontable(d_stats, selectCallback = TRUE, rowHeaders = FALSE) %>%
         hot_col("item_name", width = 400) %>%
         hot_col("element_name", width = 200) %>%
         hot_col("percentage", format = "0.0%", width = 100) %>%
@@ -1906,20 +1906,15 @@ server <- function(input, output, session) {
       on.exit(swsProgress_out$close())
       swsProgress_out$set(value = 100, message = "Loading all data from SWS")
 
-      d <- GetData(key, normalized = FALSE)
+      d <- GetData(key)
+      
+      ymax <- max(d$timePointYears)
 
-      d <-
-        normalise(
-          d,
-          areaVar       = "geographicAreaM49",
-          itemVar       = "measuredItemCPC",
-          elementVar    = "measuredElementTrade",
-          yearVar       = "timePointYears",
-          flagObsVar    = "flagObservationStatus",
-          flagMethodVar = "flagMethod",
-          valueVar      = "Value",
-          removeNonExistingRecords = FALSE
-      )
+      d <- d[CJ(geographicAreaM49 = unique(d$geographicAreaM49), measuredElementTrade = unique(d$measuredElementTrade), measuredItemCPC = unique(d$measuredItemCPC), timePointYears = as.character(values$query_years[1]:ymax)), on = c("geographicAreaM49", "measuredElementTrade", "measuredItemCPC", "timePointYears")]
+
+      d[, any := any(!is.na(Value)), by = c("geographicAreaM49", "measuredElementTrade", "measuredItemCPC")]
+
+      d <- d[any == TRUE][, any := NULL]
 
       setorderv(d, c("geographicAreaM49", "measuredItemCPC", "measuredElementTrade", "timePointYears"))
 
@@ -2013,6 +2008,7 @@ server <- function(input, output, session) {
       rhandsontable(
         values$rendered_outliers$d_data,
         comments = values$rendered_outliers$m_out,
+        rowHeaders = FALSE,
         selectCallback = TRUE) %>%
           hot_col(names(values$rendered_outliers$d_data)[grep("^\\d{4}$", names(values$rendered_outliers$d_data))], format = "0,0")
     })
