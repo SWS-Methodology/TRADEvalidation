@@ -1,8 +1,6 @@
 # TODO: add a lock system on SaveData() as if there is a concurrent saving
 # it **may** happen that the faosws environment comes from another user.
 
-# TODO: add labels in outliers tab
-
 source("global.R")
 
 ui <-
@@ -50,9 +48,10 @@ ui <-
 
       tabPanel(
         "Outliers",
+        verbatimTextOutput("out_parameters_info"),
         fluidRow(
           # FIXME: make MAX_YEAR to remove last year with all missing data
-          column(4, sliderInput("out_years", "Years to check", min = MAX_YEAR - 10, max = MAX_YEAR, c(MAX_YEAR - 4, MAX_YEAR), sep = "")),
+          column(4, sliderInput("out_years", "Years to check", min = MAX_YEAR - 10, max = MAX_YEAR, c(MAX_YEAR - 5, MAX_YEAR), sep = "")),
           column(4, uiOutput("out_ratio_ui")),
           column(4, uiOutput("out_growth_ui"))
         ),
@@ -270,14 +269,15 @@ server <- function(input, output, session) {
       new_figure            = NA_real_,
       new_10                = NA_real_,
       new_mirror            = NA_real_,
+      threshold_used        = NA_real_,
       current_data          = NULL,
       data_uncorrect        = NULL,
+      people_in_charge      = NULL,
       hs                    = NA_character_,
       hs6                   = NA_character_,
       user                  = NA_character_,
       email                 = NA_character_,
       link_msg              = NA_character_,
-      people_in_charge      = NULL,
       existing_partners     = NA_character_,
       out_defaults          = list(out_years = c(MAX_YEAR - 4, MAX_YEAR), out_ratio = c(0.25, 4), out_growth = c(-50, 100)),
       rendered_outliers     = list(),
@@ -291,6 +291,15 @@ server <- function(input, output, session) {
           year     = NA_character_ # yes, character
         )
     )
+
+  output$out_parameters_info <-
+    renderText({
+      req(values$threshold_used)
+      info_thresh <- paste("quantities greater than", fmtnum(values$threshold_used))
+      info_ratio <- paste("ratio lower than", values$out_defaults$out_ratio[1], "or greater than", values$out_defaults$out_ratio[2])
+      info_growth <- paste("growth rate lower than", paste0(values$out_defaults$out_growth[1], "%"), "or greater than", paste0(values$out_defaults$out_growth[2], "%"))
+      print(paste0("Outliers found for ", input$query_country, ". Paramaters used: ", info_thresh, "; ", info_ratio, "; ", info_growth))
+    })
 
   output$rawdata <-
     DT::renderDataTable({
@@ -1930,7 +1939,7 @@ server <- function(input, output, session) {
         list(
           country = values$query_country,
           elements = values$codelists$elements[, .(measuredElementTrade = code, description)],
-          interval = 2010:2013,
+          interval = 2009:2013,
           outlier_thresholds = values$outlier_thresholds,
           default_threshold = DEFAULT_THRESHOLD,
           outliers_ratio = values$out_defaults$out_ratio,
@@ -1942,6 +1951,14 @@ server <- function(input, output, session) {
 
       # XXX: parameterise interval (actually the mean at this point should be completely moving)
       values$outliers_found <- detect_outliers(d, method = "simple", params = values$outliers_params)
+
+      threshold_used <- values$outliers_params$outlier_threshold[area == values$query_country]
+
+      if (nrow(threshold_used) > 0) {
+        values$threshold_used <- threshold_used$threshold
+      } else {
+        values$threshold_used <- DEFAULT_THRESHOLD
+      }
 
       if (nrow(values$outliers_found) > 0 && TRUE %in% values$outliers_found$outlier) {
 

@@ -255,7 +255,6 @@ rbindlist2 <- function(data) {
 
 
 # Will add an "outlier" column saying whether it is an outlier or not.
-# When it enters here, the data should already be ordered.
 detect_outliers <- function(data, method = "simple", params = list()) {
 
   orig_vars <- names(data)
