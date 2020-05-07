@@ -124,7 +124,7 @@ If you want that also the main items by value appear,
 you need to click on the box "Also main items by monetary value?".
 
 
-#w# Total
+### Total
 
 This tab is splitted into four components.
 The first one contains options and an "undo last modification" button.
