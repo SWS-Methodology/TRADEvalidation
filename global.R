@@ -45,7 +45,7 @@ exclude_items_more_elements <- function(data, type = "total") {
     if (type == "total") {
       on_vars <- c("geographicAreaM49", "measuredElementTrade",
                    "measuredItemCPC", "timePointYears")
-    } else if (type == "total") {
+    } else if (type == "bilateral") {
       on_vars <- c("geographicAreaM49Reporter", "geographicAreaM49Partner",
                    "measuredElementTrade", "measuredItemCPC", "timePointYears")
     } else {

@@ -1315,7 +1315,6 @@ server <- function(input, output, session) {
 
           d <- GetData(key)
 
-          exclude_items_more_elements(d, type = "bilateral")
         } else {
           NULL
         }
@@ -1355,7 +1354,7 @@ server <- function(input, output, session) {
         # TODO: error handling
         d <- GetData(key)
 
-        values$new_sws_data_total <- exclude_items_more_elements(d, type = "bilateral")
+        values$new_sws_data_total <- exclude_items_more_elements(d, type = "total")
 
         if (nrow(values$new_sws_data_total) > 0) {
           values$query_years[2] <- max(values$new_sws_data_total$timePointYears)
@@ -1394,7 +1393,7 @@ server <- function(input, output, session) {
           # TODO: error handling; complete as well ?
           d <- GetData(key)
 
-          exclude_items_more_elements(d, type = "bilateral")
+          exclude_items_more_elements(d, type = "total")
         }
       }
       ################# / WORLD #####################
