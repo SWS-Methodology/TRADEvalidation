@@ -1125,7 +1125,7 @@ server <- function(input, output, session) {
         div('NOTE: this is a mirrored flow, what needs adjustment is the mirror.', style = "font-size: 20px; background-color: red; font-weight: bold;")
       } else if (nrow(d_corrs) > 0) {
         values$corr_cant_correct <- TRUE
-        div('NOTE: a correction already exists. If you need to re-correct it (!), remove it first in the "Corrections" tab.', style = "font-size: 20px; background-color: red; font-weight: bold;")
+        div('NOTE: a correction already exists. If you need to re-correct it (!), remove it first in the "Corrections saved" tab.', style = "font-size: 20px; background-color: red; font-weight: bold;")
       } else {
         NULL
       }
@@ -1272,7 +1272,9 @@ server <- function(input, output, session) {
            on.exit(swsProgress_mirr$close())
            swsProgress_mirr$set(value = 100, message = "Loading mirror data from SWS")
 
-           values$new_sws_data_mirr_tot <- GetData(key) # XXX
+           d <- GetData(key) # XXX
+
+           values$new_sws_data_mirr_tot <- exclude_items_more_elements(d, type = "bilateral")
 
            values$new_sws_data_mirr_tot
         } else {
@@ -1311,7 +1313,9 @@ server <- function(input, output, session) {
           on.exit(swsProgress_prod$close())
           swsProgress_prod$set(value = 100, message = "Loading production data from SWS")
 
-          GetData(key)
+          d <- GetData(key)
+
+          exclude_items_more_elements(d, type = "bilateral")
         } else {
           NULL
         }
@@ -1349,7 +1353,9 @@ server <- function(input, output, session) {
         swsProgress_tot$set(value = 100, message = "Loading total data from SWS")
 
         # TODO: error handling
-        values$new_sws_data_total <- GetData(key)
+        d <- GetData(key)
+
+        values$new_sws_data_total <- exclude_items_more_elements(d, type = "bilateral")
 
         if (nrow(values$new_sws_data_total) > 0) {
           values$query_years[2] <- max(values$new_sws_data_total$timePointYears)
@@ -1386,7 +1392,9 @@ server <- function(input, output, session) {
           swsProgress_world$set(value = 100, message = "Loading total world data from SWS")
 
           # TODO: error handling; complete as well ?
-          GetData(key)
+          d <- GetData(key)
+
+          exclude_items_more_elements(d, type = "bilateral")
         }
       }
       ################# / WORLD #####################
@@ -1417,6 +1425,8 @@ server <- function(input, output, session) {
         swsProgress_bilat$set(value = 100, message = "Loading bilateral data from SWS")
 
         d <- GetData(key)
+
+        d <- exclude_items_more_elements(d, type = "bilateral")
 
         values$existing_partners <- unique(d$geographicAreaM49Partner)
 
@@ -1779,14 +1789,14 @@ server <- function(input, output, session) {
         p('This is an interactive tool for trade data validation.', 'In order to use the app you need to authenticate. Click on the "Token" button above and input a token taken from the completed trade dataset.'),
         p(),
         p("The tool has the following tabs:"),
-        p(strong("Outliers"), "All outliers."),
-        p(strong("Main items"), "The most important items for the country."),
-        p(strong("Total"), "Total and main bilateral flows."),
-        p(strong("Bilateral"), "Bilateral flow correction."),
-        p(strong("Corrections"), "Table with already saved corrections."),
-        p(strong("Save"), "Save new corrections."),
-        p(strong("Raw data / MAP"), "To check raw data or change the mapping."),
-        p(strong("Help"), "Help page."),
+        p(strong("Outliers:"), "All outliers."),
+        p(strong("Main items:"), "The most important items for the country."),
+        p(strong("Total:"), "Total and main bilateral flows."),
+        p(strong("Bilateral:"), "Bilateral flow correction."),
+        p(strong("TO COMMIT:"), "Save NEW corrections."),
+        p(strong("Corrections to save:"), "Table with ALREADY SAVED corrections."),
+        p(strong("Raw data / MAP:"), "To check raw data or change the mapping."),
+        p(strong("Help:"), "Help page."),
         h2("Recommended workflow"),
         p("The recommended workflow is (you need to authenticate in advance, see above.):"),
         p("0. Select a country in the upper side of the tool."),
@@ -1800,10 +1810,10 @@ server <- function(input, output, session) {
         p('7. At this point you have two options:'),
         p('7.1. Undo the correction, by clicking on the "undo" button in the "Total" tab.'),
         p('7.2. Confirm the correction by clicking on the "Confirm correction" button in the "Bilateral" tab.'),
-        p('8. Once you finish corrections go to the "Save" tab and click on "Send to SWS datasets".'),
+        p('8. Once you finish corrections go to the "TO COMMIT" tab and click on "Send to SWS datasets".'),
         p('9. You can now go back and start again from point 1 or 2, depending whether you want to act on identified outliers or main items, respectively.'),
         h2("Correct one item/flow at a time"),
-        p('It is possible for you to accumulate different corrections, but only if you do not change the item/flow combination. If you do that, all corrections done in the session will be removed. So, correct one item/flow at a time, then when you are ready to commit changes click on "Send to SWS datasets" in the "Save" tab, where you see the corrections ready to be committed.')
+        p('It is possible for you to accumulate different corrections, but only if you do not change the item/flow combination. If you do that, all corrections done in the session will be removed. So, correct one item/flow at a time, then when you are ready to commit changes click on "Send to SWS datasets" in the "TO COMMIT" tab, where you see the corrections ready to be committed.')
       )
     })
 
@@ -1916,7 +1926,9 @@ server <- function(input, output, session) {
       swsProgress_out$set(value = 100, message = "Loading all data from SWS")
 
       d <- GetData(key)
-      
+
+      d <- exclude_items_more_elements(d, type = "total")
+
       ymax <- max(d$timePointYears)
 
       d <- d[CJ(geographicAreaM49 = unique(d$geographicAreaM49), measuredElementTrade = unique(d$measuredElementTrade), measuredItemCPC = unique(d$measuredItemCPC), timePointYears = as.character(values$query_years[1]:ymax)), on = c("geographicAreaM49", "measuredElementTrade", "measuredItemCPC", "timePointYears")]
@@ -1951,6 +1963,8 @@ server <- function(input, output, session) {
 
       # XXX: parameterise interval (actually the mean at this point should be completely moving)
       values$outliers_found <- detect_outliers(d, method = "simple", params = values$outliers_params)
+
+        browser()
 
       threshold_used <- values$outliers_params$outlier_threshold[area == values$query_country]
 
@@ -2132,6 +2146,8 @@ server <- function(input, output, session) {
 
         # TODO: error handling
         d <- GetData(key)
+
+        d <- exclude_items_more_elements(d, type = "bilateral")
 
         if (nrow(d) > 0) {
 
@@ -2352,6 +2368,8 @@ server <- function(input, output, session) {
           swsProgress_mirr3$set(value = 100, message = "Loading mirror data from SWS")
 
           d_mirr <- GetData(key)
+
+          d_mirr <- exclude_items_more_elements(d_mirr, type = "bilateral")
 
           for (mypartner in unique(values$data_multiple$geographicAreaM49Partner)) {
             mycorrection_partner = copy(mycorrection)
@@ -2674,6 +2692,8 @@ server <- function(input, output, session) {
           swsProgress_mirr2$set(value = 100, message = "Loading mirror data from SWS")
 
           d_mirr <- GetData(key)
+
+          d_mirr <- exclude_items_more_elements(d_mirr, type = "bilateral")
 
           d_mirr <- d_mirr[, .(geographicAreaM49Partner = geographicAreaM49Reporter, element = substr(measuredElementTrade, 3, 4), Value_mirr = Value)]
 
@@ -3018,6 +3038,9 @@ server <- function(input, output, session) {
 
         f <- file.path(CORRECTIONS_DIR, values$query_country, "corrections_table.rds")
 
+        # Backup
+        save_rds(values$corrections, sub('(\\.rds)', paste0('_', format(Sys.time(), '%Y%m%d%H%M%S'), '\\1'), f))
+        # New
         save_rds(dplyr::as.tbl(d), f)
 
         values$corrections <- d
@@ -3058,6 +3081,8 @@ server <- function(input, output, session) {
         )
 
       d_data <- GetData(key)
+
+      d_data <- exclude_items_more_elements(d_data, type = "bilateral")
 
       orig_order <- colnames(d_data)
 
@@ -3208,6 +3233,9 @@ server <- function(input, output, session) {
 
       f <- file.path(CORRECTIONS_DIR, values$query_country, "corrections_table.rds")
 
+      # Backup
+      save_rds(values$corrections, sub('(\\.rds)', paste0('_', format(Sys.time(), '%Y%m%d%H%M%S'), '\\1'), f))
+      # New
       save_rds(dplyr::as.tbl(d), f)
 
       values$corrections <- d

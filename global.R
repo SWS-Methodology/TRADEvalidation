@@ -32,6 +32,32 @@ TYPES_CORRECTION <- c(
   'Expert knowledge'
 )
 
+# Exclude tons, when main unit is heads
+exclude_items_more_elements <- function(data, type = "total") {
+  if (nrow(data) > 0) {
+    # Exclude tons, when main unit is heads
+    to_exclude <-
+      data[
+        substr(measuredItemCPC, 1, 3) == "021" &
+          substr(measuredElementTrade, 3, 4) == 10
+      ]
+
+    if (type == "total") {
+      on_vars <- c("geographicAreaM49", "measuredElementTrade",
+                   "measuredItemCPC", "timePointYears")
+    } else if (type == "total") {
+      on_vars <- c("geographicAreaM49Reporter", "geographicAreaM49Partner",
+                   "measuredElementTrade", "measuredItemCPC", "timePointYears")
+    } else {
+      stop('"type" must be either "total" or "bilateral"')
+    }
+
+    return(data[!to_exclude, on = on_vars])
+  } else {
+    return(data)
+  }
+}
+
 REMOTE <- 
   "HOSTNAME" %in% names(Sys.getenv()) &&
     grepl("hq.un.fao.org", Sys.getenv()[['HOSTNAME']])
@@ -40,7 +66,7 @@ if (REMOTE == TRUE) {
   # on server
   #CONFIG_CERTIFICATES <- "/srv/shiny-server/PRODvalidation/files/certificates/qa"
   CONFIG_CERTIFICATES <- "/srv/shiny-server/.R/QA"
-  CORRECTIONS_DIR <- "/work/SWS_R_Share/trade/validation_tool_files/new_tool_test"
+  CORRECTIONS_DIR <- "/work/SWS_R_Share/trade/validation_tool_files"
   TRADEMAP_DIR <- "/work/SWS_R_Share/trade/validation_tool_files/rawtrade"
 } else {
   # local
