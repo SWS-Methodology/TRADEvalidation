@@ -1,6 +1,8 @@
 # TODO: add a lock system on SaveData() as if there is a concurrent saving
 # it **may** happen that the faosws environment comes from another user.
 
+# TODO: add labels in outliers tab
+
 source("global.R")
 
 ui <-
@@ -49,6 +51,7 @@ ui <-
       tabPanel(
         "Outliers",
         fluidRow(
+          # FIXME: make MAX_YEAR to remove last year with all missing data
           column(4, sliderInput("out_years", "Years to check", min = 2000, max = MAX_YEAR, c(MAX_YEAR - 4, MAX_YEAR), sep = "")),
           column(4, uiOutput("out_ratio_ui")),
           column(4, uiOutput("out_growth_ui"))
@@ -169,14 +172,7 @@ ui <-
       ),
 
       tabPanel(
-        "Corrections",
-        actionButton("corr_delete_correction", "Delete selected correction"),
-        h2("List of corrections currently saved:"),
-        DT::dataTableOutput("corr_corrections_table")
-      ),
-
-      tabPanel(
-        "Save",
+        "To commit",
         actionButton("send_to_datasets", "Send to SWS datasets"),
         verbatimTextOutput("save_result_bil"),
         verbatimTextOutput("save_result_tot"),
@@ -186,6 +182,13 @@ ui <-
         DT::dataTableOutput("new_corrections"),
         h2("List of partner/item/flow/years that will be updated because they are mirrored:"),
         DT::dataTableOutput("new_mirrored")
+      ),
+
+      tabPanel(
+        "Corrections saved",
+        actionButton("corr_delete_correction", "Delete selected correction"),
+        h2("List of corrections currently saved:"),
+        DT::dataTableOutput("corr_corrections_table")
       ),
 
       tabPanel(
@@ -512,6 +515,7 @@ server <- function(input, output, session) {
 
       setcolorder(d, c("timePointYears", "Quantity", "Value", "Unit_value", "flags_Quantity", "flags_Value", "flags_Unit_value"))
 
+      # TODO: add column widths
       rhandsontable(d, rowHeaders = FALSE) %>%
         hot_col(c("Quantity", "Value", "Unit_value"), format = "0,0")
     })
@@ -547,6 +551,7 @@ server <- function(input, output, session) {
         setcolorder(d, c("timePointYears", "Quantity", "Value", "Unit_value",
                          "flags_Quantity", "flags_Value", "flags_Unit_value"))
 
+        # TODO: add column widths
         rhandsontable(d, rowHeaders = FALSE) %>%
           hot_col(c("Quantity", "Value", "Unit_value"), format = "0,0")
       } else {
@@ -1167,8 +1172,8 @@ server <- function(input, output, session) {
   output$plot_total <-
     renderPlotly({
 
-      req(TokenValidator(), values$query_country,
-          values$query_item, input$query_flow)
+      req(TokenValidator(), values$query_country, values$query_item,
+          input$query_flow, values$data_total, nrow(values$data_total) > 0)
 
       if (!is.null(values$outliers_found)) {
         by_vars <- c("geographicAreaM49", "measuredElementTrade", "measuredItemCPC", "timePointYears")
@@ -1337,7 +1342,9 @@ server <- function(input, output, session) {
         # TODO: error handling
         values$new_sws_data_total <- GetData(key)
 
-        values$query_years[2] <- max(values$new_sws_data_total$timePointYears)
+        if (nrow(values$new_sws_data_total) > 0) {
+          values$query_years[2] <- max(values$new_sws_data_total$timePointYears)
+        }
 
         values$new_sws_data_total
       }
@@ -1427,64 +1434,68 @@ server <- function(input, output, session) {
 
       d_bil <- copy(values$new_sws_data_bilat)
 
-      shares_trade <- values$new_sws_data_bilat[!(substr(measuredElementTrade, 3, 3) %in% 2:3), .(geographicAreaM49Partner, share = Value / sum(Value)), .(measuredElementTrade, measuredItemCPC, timePointYears)]
+      if (nrow(d_bil) > 0) {
+        shares_trade <- values$new_sws_data_bilat[!(substr(measuredElementTrade, 3, 3) %in% 2:3), .(geographicAreaM49Partner, share = Value / sum(Value)), .(measuredElementTrade, measuredItemCPC, timePointYears)]
 
-      myshare <- input$share_trade
-      d <- d_bil[geographicAreaM49Partner %in% shares_trade[share > myshare / 100]$geographicAreaM49Partner]
-
-      while (nrow(d) == 0 & myshare >= 0) {
-        myshare <- myshare - 1
+        myshare <- input$share_trade
         d <- d_bil[geographicAreaM49Partner %in% shares_trade[share > myshare / 100]$geographicAreaM49Partner]
 
-        if (nrow(d) > 0) {
-          updateSliderInput(session, "share_trade", value = myshare)
+        while (nrow(d) == 0 & myshare >= 0) {
+          myshare <- myshare - 1
+          d <- d_bil[geographicAreaM49Partner %in% shares_trade[share > myshare / 100]$geographicAreaM49Partner]
+
+          if (nrow(d) > 0) {
+            updateSliderInput(session, "share_trade", value = myshare)
+          }
         }
+
+        d <-
+          d[
+            CJ(
+              geographicAreaM49Reporter = unique(d$geographicAreaM49Reporter),
+              geographicAreaM49Partner = unique(d$geographicAreaM49Partner),
+              measuredElementTrade = unique(d$measuredElementTrade),
+              measuredItemCPC = unique(d$measuredItemCPC),
+              timePointYears = as.character(values$query_years[1]:values$query_years[2])
+            ),
+            on = c("geographicAreaM49Reporter", "geographicAreaM49Partner", "measuredElementTrade", "measuredItemCPC", "timePointYears")
+          ]
+
+        d <- mydenormalise(d)
+
+        d <- set_standard_cols(d)
+
+        spark <- add_sparkline(d, type = "bilat")
+
+        d$plot <- spark$plot
+
+        setcolorder(d, spark$order)
+
+        col_headers <- set_hot_colnames(d)
+
+        col_widths <- set_hot_colwidths(d, show = input$opt_hideflags)
+
+        prev_order <- names(d)
+
+        d <- merge(d, values$codelists$countries, by.x = "geographicAreaM49Partner", by.y = "code", all.x = TRUE)
+
+        d[, geographicAreaM49Partner := paste(geographicAreaM49Partner, "-", description)]
+
+        d[, geographicAreaM49Partner := ifelse(nchar(geographicAreaM49Partner) > 20, paste0(substr(geographicAreaM49Partner, 1, 17), "..."), geographicAreaM49Partner)]
+
+        d[, description := NULL]
+
+        setcolorder(d, prev_order)
+
+        d <- add_na_rows(d, split = "geographicAreaM49Partner")
+
+        rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE, row_highlight = 1:3, rowHeaders = FALSE) %>%
+          hot_col("plot", renderer = htmlwidgets::JS("renderSparkline")) %>%
+          hot_cols(fixedColumnsLeft = 4, colWidths = col_widths) %>%
+          hot_col(col_headers[grep("^\\d{4}$", col_headers)], format = "0,0")
+      } else {
+        rhandsontable(data.table(info = "No data"))
       }
-
-      d <-
-        d[
-          CJ(
-            geographicAreaM49Reporter = unique(d$geographicAreaM49Reporter),
-            geographicAreaM49Partner = unique(d$geographicAreaM49Partner),
-            measuredElementTrade = unique(d$measuredElementTrade),
-            measuredItemCPC = unique(d$measuredItemCPC),
-            timePointYears = as.character(values$query_years[1]:values$query_years[2])
-          ),
-          on = c("geographicAreaM49Reporter", "geographicAreaM49Partner", "measuredElementTrade", "measuredItemCPC", "timePointYears")
-        ]
-
-      d <- mydenormalise(d)
-
-      d <- set_standard_cols(d)
-
-      spark <- add_sparkline(d, type = "bilat")
-
-      d$plot <- spark$plot
-
-      setcolorder(d, spark$order)
-
-      col_headers <- set_hot_colnames(d)
-
-      col_widths <- set_hot_colwidths(d, show = input$opt_hideflags)
-
-      prev_order <- names(d)
-
-      d <- merge(d, values$codelists$countries, by.x = "geographicAreaM49Partner", by.y = "code", all.x = TRUE)
-
-      d[, geographicAreaM49Partner := paste(geographicAreaM49Partner, "-", description)]
-
-      d[, geographicAreaM49Partner := ifelse(nchar(geographicAreaM49Partner) > 20, paste0(substr(geographicAreaM49Partner, 1, 17), "..."), geographicAreaM49Partner)]
-
-      d[, description := NULL]
-
-      setcolorder(d, prev_order)
-
-      d <- add_na_rows(d, split = "geographicAreaM49Partner")
-
-      rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE, row_highlight = 1:3, rowHeaders = FALSE) %>%
-        hot_col("plot", renderer = htmlwidgets::JS("renderSparkline")) %>%
-        hot_cols(fixedColumnsLeft = 4, colWidths = col_widths) %>%
-        hot_col(col_headers[grep("^\\d{4}$", col_headers)], format = "0,0")
   })
 
   output$text_total_info <-
@@ -1560,7 +1571,7 @@ server <- function(input, output, session) {
   output$table_total <-
     renderRHandsontable({
 
-      req(values$data_total)
+      req(values$new_sws_data_total)
 
       d <- copy(values$new_sws_data_total)
 
@@ -1568,27 +1579,29 @@ server <- function(input, output, session) {
         # XXX: probably this just should throw an error so that everything stops
         # (the tool itself does not make sense if there are no totals)
         d <- d[CJ(geographicAreaM49 = unique(d$geographicAreaM49), measuredElementTrade = unique(d$measuredElementTrade), measuredItemCPC = unique(d$measuredItemCPC), timePointYears = as.character(values$query_years[1]:values$query_years[2])), on = c("geographicAreaM49", "measuredElementTrade", "measuredItemCPC", "timePointYears")]
+
+        d <- mydenormalise(d)
+
+        d <- set_standard_cols(d)
+
+        spark <- add_sparkline(d, type = "total")
+
+        d$plot <- spark$plot
+
+        setcolorder(d, spark$order)
+
+        col_headers <- set_hot_colnames(d)
+
+        col_widths <- set_hot_colwidths(d, show = input$opt_hideflags)
+
+        # Notice that there is an additional column fixed, with respect to bilaral plot
+        rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE, rowHeaders = FALSE) %>%
+          hot_col("plot", renderer = htmlwidgets::JS("renderSparkline")) %>%
+          hot_cols(fixedColumnsLeft = 5, colWidths = col_widths, columnSorting = TRUE) %>%
+          hot_col(col_headers[grep("^\\d{4}$", col_headers)], format = "0,0")
+      } else {
+        rhandsontable(data.table(info = "No data"))
       }
-
-      d <- mydenormalise(d)
-
-      d <- set_standard_cols(d)
-
-      spark <- add_sparkline(d, type = "total")
-
-      d$plot <- spark$plot
-
-      setcolorder(d, spark$order)
-
-      col_headers <- set_hot_colnames(d)
-
-      col_widths <- set_hot_colwidths(d, show = input$opt_hideflags)
-
-      # Notice that there is an additional column fixed, with respect to bilaral plot
-      rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE, rowHeaders = FALSE) %>%
-        hot_col("plot", renderer = htmlwidgets::JS("renderSparkline")) %>%
-        hot_cols(fixedColumnsLeft = 5, colWidths = col_widths, columnSorting = TRUE) %>%
-        hot_col(col_headers[grep("^\\d{4}$", col_headers)], format = "0,0")
     })
 
   observeEvent(
@@ -2451,6 +2464,7 @@ server <- function(input, output, session) {
           # TODO: error handling
           d <- GetHistory(key)
 
+          # TODO: add column widths
           if (nrow(d) > 0) {
             d[, Date := as.POSIXct(StartDate/1000, origin="1970-01-01")]
 
