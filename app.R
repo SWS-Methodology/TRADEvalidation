@@ -2088,6 +2088,7 @@ server <- function(input, output, session) {
     {
       values$corrections_to_save <- list()
       values$mirror_to_save <- list()
+      values$corr_cant_correct <- FALSE
     }
   )
 
@@ -2097,6 +2098,7 @@ server <- function(input, output, session) {
       values$query_item <- strsplit(input$query_item, " - ")[[1]][1]
       values$corrections_to_save <- list()
       values$mirror_to_save <- list()
+      values$corr_cant_correct <- FALSE
     }
   )
 
@@ -2106,6 +2108,7 @@ server <- function(input, output, session) {
       values$query_country <- strsplit(input$query_country, " - ")[[1]][1]
       values$corrections_to_save <- list()
       values$mirror_to_save <- list()
+      values$corr_cant_correct <- FALSE
     }
   )
 
@@ -2463,6 +2466,7 @@ server <- function(input, output, session) {
     input$corr_year2correct,
     {
       values$sel_bilat$year <- input$corr_year2correct
+      values$corr_cant_correct <- FALSE
     }
   )
 
@@ -2521,6 +2525,7 @@ server <- function(input, output, session) {
     input$query_bil_partner,
     {
       values$sel_bilat$partner <- strsplit(input$query_bil_partner, " - ")[[1]][1]
+      values$corr_cant_correct <- FALSE
     }
   )
 
@@ -2539,6 +2544,7 @@ server <- function(input, output, session) {
       }
 
       values$sel_bilat$element <- element
+      values$corr_cant_correct <- FALSE
     }
   )
 
