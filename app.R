@@ -50,7 +50,6 @@ ui <-
         "Outliers",
         verbatimTextOutput("out_parameters_info"),
         fluidRow(
-          # FIXME: make MAX_YEAR to remove last year with all missing data
           column(4, sliderInput("out_years", "Years to check", min = MAX_YEAR - 10, max = MAX_YEAR, c(MAX_YEAR - 5, MAX_YEAR), sep = "")),
           column(4, uiOutput("out_ratio_ui")),
           column(4, uiOutput("out_growth_ui"))
@@ -71,7 +70,7 @@ ui <-
           column(2, selectInput("opt_hideflags", "Show flags?", c(FALSE, TRUE))),
           column(2, selectInput("opt_showmirror", "Show mirror?", c(FALSE, TRUE))),
           column(2, selectInput("opt_showprod", "Show Production?", c(FALSE, TRUE))),
-          column(4, sliderInput("share_trade", "Minimum trade share of partner", min = 0, max = 50, 0, step = 5, post = "%", width = "100%")),
+          column(4, sliderInput("share_trade", "Minimum trade share of partner", min = 0, max = 50, 5, step = 5, post = "%", width = "100%")),
           column(2, actionButton("undo", "Undo last modification"))
         ),
         actionButton("toggle_table_total", "show/hide", class = "toggle_visibility", width = "100%"),
@@ -264,6 +263,7 @@ server <- function(input, output, session) {
       data_prod             = NULL,
       data_multiple         = NULL,
       corrections           = NULL,
+      corr_opts_out_method  = NULL,
       corr_cant_correct     = FALSE,
       multiplecorrections   = FALSE,
       new_figure            = NA_real_,
@@ -718,6 +718,8 @@ server <- function(input, output, session) {
 
         res_vec <- res$variable
         names(res_vec) <- res$how
+
+        values$corr_opts_out_method <- res_vec
 
         output$corr_suggestoutlier <-
           renderTable({
@@ -1507,7 +1509,7 @@ server <- function(input, output, session) {
 
         d <- add_na_rows(d, split = "geographicAreaM49Partner")
 
-        rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE, row_highlight = 1:3, rowHeaders = FALSE, height = 600) %>%
+        rhandsontable(d, colHeaders = col_headers, selectCallback = TRUE, row_highlight = 1:3, rowHeaders = FALSE) %>%
           hot_col("plot", renderer = htmlwidgets::JS("renderSparkline")) %>%
           hot_cols(fixedColumnsLeft = 4, colWidths = col_widths) %>%
           hot_col(col_headers[grep("^\\d{4}$", col_headers)], format = "0,0")
@@ -2181,7 +2183,7 @@ server <- function(input, output, session) {
             'None'                = NA_character_,
             'Measurement factor'  = NA_character_,
             'Mirror flow'         = NA_character_,
-            'Outlier correction'  = input$corr_correction_outlier,
+            'Outlier correction'  = names(which(values$corr_opts_out_method == input$corr_correction_outlier)),
             'Publication/website' = NA_character_,
             'Expert knowledge'    = NA_character_
           )
@@ -2573,7 +2575,7 @@ server <- function(input, output, session) {
               input$corr_choose_correction,
               "Measurement factor"  = values$new_10,
               "Mirror flow"         = values$new_mirror,
-              "Outlier correction"  = input$corr_correction_outlier,
+              "Outlier correction"  = names(which(values$corr_opts_out_method == input$corr_correction_outlier)),
               "Publication/website" = input$corr_correction_publication,
               "Expert knowledge"    = input$corr_correction_expert
             )
