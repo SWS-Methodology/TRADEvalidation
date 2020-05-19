@@ -1538,7 +1538,7 @@ server <- function(input, output, session) {
       }
 
       # Remove weight for livestock
-      d[!(substr(measuredItemCPC, 1, 3) == "021" & substr(measuredElementTrade, 3, 3) == "1")]
+      d <- d[!(substr(measuredItemCPC, 1, 3) == "021" & substr(measuredElementTrade, 3, 3) == "1")]
 
       d <- d[substr(measuredElementTrade, 3, 3) != "3"]
 
