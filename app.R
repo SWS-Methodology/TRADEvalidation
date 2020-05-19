@@ -1537,7 +1537,7 @@ server <- function(input, output, session) {
         d <- d[substr(measuredElementTrade, 3, 4) != "22"]
       }
 
-      # Remove heads for livestock
+      # Remove weight for livestock
       d[!(substr(measuredItemCPC, 1, 3) == "021" & substr(measuredElementTrade, 3, 3) == "1")]
 
       d <- d[substr(measuredElementTrade, 3, 3) != "3"]
@@ -2575,7 +2575,7 @@ server <- function(input, output, session) {
               input$corr_choose_correction,
               "Measurement factor"  = values$new_10,
               "Mirror flow"         = values$new_mirror,
-              "Outlier correction"  = names(which(values$corr_opts_out_method == input$corr_correction_outlier)),
+              "Outlier correction"  = input$corr_correction_outlier,
               "Publication/website" = input$corr_correction_publication,
               "Expert knowledge"    = input$corr_correction_expert
             )
