@@ -206,6 +206,24 @@ ui <-
       ),
 
       tabPanel(
+        "Other checks",
+        navlistPanel(
+          widths = c(3, 9),
+          tabPanel(
+            "Total agriculture/merchandise",
+            HTML("<p>Select below the years below for which analyze agricultural/merchandise trade.<p>"),
+            sliderInput("totmerch_years", "Years to consider", min = 2010, max = MAX_YEAR, c(2010, MAX_YEAR), sep = ""),
+            DT::dataTableOutput("totmerch_table"),
+            plotOutput("totmerch_plot")
+          ),
+          tabPanel(
+            "Global unit values",
+            HTML('<p>Not implemented here, yet.</p><p>Please go to <a href = "http://hqlprsws1.hq.un.fao.org:3838/global_unit_values/">http://hqlprsws1.hq.un.fao.org:3838/global_unit_values/</a></p>')
+          )
+        )
+      ),
+
+      tabPanel(
         "Help",
         div(HTML(markdown::markdownToHTML("files/help.Rmd", fragment.only = TRUE)), id = "helpdoc", style = "width: 1000px; margin: auto;")
       ) #,
@@ -257,6 +275,7 @@ server <- function(input, output, session) {
       data_outliers         = NULL,
       data_total            = NULL,
       data_mirr_tot         = NULL,
+      data_totmerch         = NULL,
       data_mirr_bilat       = NULL,
       data_world            = NULL,
       data_bilat            = NULL,
@@ -1446,6 +1465,149 @@ server <- function(input, output, session) {
 
     }
   )
+
+  observeEvent(
+    c(TokenValidator(), values$query_country, input$totmerch_years),
+    {
+      req(TokenValidator(), values$query_country, input$totmerch_years)
+
+      dataReadProgress_merch <- Progress$new(session, min = 0, max = 100)
+      dataReadProgress_merch$set(value = 100, message = "Loading data from the SWS")
+      on.exit(dataReadProgress_merch$close())
+
+      values$data_totmerch <- {
+
+        all_countries <-
+          GetCodeList("trade", "completed_tf_cpc_m49", "geographicAreaM49Reporter")[type == "country"]$code
+
+        # TODO: subset only region
+
+        key <-
+          DatasetKey(
+            domain = DOMAIN,
+            dataset = DATASET_TOT,
+            dimensions =
+              list(
+                geographicAreaM49    = Dimension("geographicAreaM49",    all_countries),
+                measuredElementTrade = Dimension("measuredElementTrade", c("5622", "5922")),
+                measuredItemCPC      = Dimension("measuredItemCPC",      c("F1881", "F1882")),
+                timePointYears       = Dimension("timePointYears",       as.character(input$totmerch_years[1]:input$totmerch_years[2]))
+              )
+          )
+
+        d <- GetData(key)
+
+        d[, region := countrycode::countrycode(geographicAreaM49, "un", "region")]
+
+        d[geographicAreaM49 == "158", region := "Eastern Asia"]
+        d[geographicAreaM49 == "1248", region := "Eastern Asia"]
+        d[geographicAreaM49 == "162", region := "Eastern Asia"]
+        d[geographicAreaM49 == "166", region := "Eastern Asia"]
+
+        exclude_items_more_elements(d, type = "total")
+      }
+      ################# / BILATERAL #####################
+    }
+  )
+
+  output$totmerch_plot <-
+    renderPlot({
+
+      req(values$data_totmerch)
+
+      d <- copy(values$data_totmerch)
+
+      # country
+      d_country <- d[geographicAreaM49 == values$query_country][, .(geographicAreaM49 = "country", measuredElementTrade, measuredItemCPC, timePointYears, Value)]
+
+      # region
+      d_region <- d[region == countrycode::countrycode(values$query_country, "un", "region") & geographicAreaM49 != values$query_country, .(geographicAreaM49 = "region", Value = sum(Value)), by = c("measuredElementTrade", "measuredItemCPC", "timePointYears")]
+
+      # world
+      d_world <- d[geographicAreaM49 != values$query_country, .(geographicAreaM49 = "world", Value = sum(Value)), by = c("measuredElementTrade", "measuredItemCPC", "timePointYears")]
+
+      dt <- rbind(d_country, d_region, d_world)
+
+      dt <- dcast.data.table(dt, geographicAreaM49 + measuredElementTrade + timePointYears ~ measuredItemCPC, value.var = "Value")
+
+      setnames(dt, c("geographicAreaM49", "F1881", "F1882"), c("area", "merchandise", "agricultural"))
+
+      dt[, ratio := agricultural / merchandise]
+
+      dt[, measuredElementTrade := ifelse(substr(measuredElementTrade, 1, 2) == "56", "import", "export")]
+
+      ggplot(dt, aes(x = timePointYears, y = ratio, group = area, color = area)) + geom_line(size = 2) + facet_wrap(~measuredElementTrade, scales = "free", nrow = 2)
+
+    })
+
+  output$totmerch_table <-
+    DT::renderDataTable({
+      req(values$data_totmerch)
+
+      d_country <- values$data_totmerch[geographicAreaM49 == values$query_country]
+
+      d_country[,
+        `:=`(
+          measuredElementTrade = ifelse(substr(measuredElementTrade, 1, 2) == "56", "import", "export"),
+          measuredItemCPC = ifelse(measuredItemCPC == "F1881", "merchandise", "agriculture")
+        )
+      ]
+
+      d_country <- dcast.data.table(d_country, timePointYears ~ measuredItemCPC + measuredElementTrade, value.var = "Value")
+
+      setnames(d_country, "timePointYears", "year")
+
+      d_country[,
+        `:=`(
+          ratio_export = as.character(round(agriculture_export / merchandise_export, 2)),
+          ratio_import = as.character(round(agriculture_import / merchandise_import, 2))
+        )
+      ]
+
+
+      d_country[
+        agriculture_export / merchandise_export > 1,
+        ratio_export := paste0('<span style="background-color: red; text-align: right">', ratio_export, '</span>')
+      ]
+
+      d_country[
+        agriculture_import / merchandise_import > 1,
+        ratio_import := paste0('<span style="background-color: red; text-align: right">', ratio_import, '</span>')
+      ]
+
+      table_container <-
+        htmltools::withTags(table(
+          class = 'display',
+          thead(
+            tr(
+              th(rowspan = 2, 'Year'),
+              th(colspan = 2, 'Agriculture', style = "text-align: center;"),
+              th(colspan = 2, 'Merchandise', style = "text-align: center;"),
+              th(colspan = 2, 'Agriculture / Merchandise ratio', style = "text-align: center;")
+            ),
+            tr(
+              lapply(rep(c('export', 'import'), 3), th)
+            )
+          )
+        ))
+
+
+      DT::datatable(
+        d_country,
+        container = table_container,
+        rownames = FALSE,
+        options = list(dom = '', columnDefs = list(list(className = 'dt-right', targets = 1:6))),
+        escape = -6
+      ) %>%
+      DT::formatCurrency(
+        c('agriculture_export', 'agriculture_import',
+          'merchandise_export', 'merchandise_import'),
+        digits = 0,
+        currency = ''
+      ) %>%
+      DT::formatCurrency(c('ratio_export', 'ratio_import'), digits = 2, currency = '')
+
+    })
 
   output$table_bilat <-
     renderRHandsontable({
