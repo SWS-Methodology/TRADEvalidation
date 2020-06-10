@@ -291,6 +291,9 @@ detect_outliers <- function(data, method = "simple", params = list()) {
   setorderv(d, c("measuredItemCPC", "measuredElementTrade", "timePointYears"))
 
   if (method == "simple") {
+      # NOTE: This was taken from the "Tradeoutliers_most_recent_version"
+      # SWS plugin (the original plugin was "tradeOutlierDetection") authored
+      # by Carlo Del Bello.
 
     if (!("geographicAreaM49" %in% names(d))) {
       d[, geographicAreaM49 := params$country]
